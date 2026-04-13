@@ -1,0 +1,13 @@
+server:
+  port: 8092
+
+spring:
+  application:
+    name: baby-log-api
+
+baby-log:
+  db:
+    url: ${BABY_LOG_DB_URL:jdbc:postgresql://localhost:5492/babylog}
+    username: ${BABY_LOG_DB_USERNAME:babylog}
+    password: ${BABY_LOG_DB_PASSWORD:babylog}
+    driver-class-name: org.postgresql.Driver
