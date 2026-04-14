@@ -2,14 +2,16 @@ package com.giwon.babylog.features.growth
 
 import org.springframework.stereotype.Service
 
+data class RangeDto<T>(val start: T, val end: T)
+
 data class GrowthStageResponse(
     val daysOld: Long,
     val stage: String,
     val title: String,
     val description: String,
     val tips: List<String>,
-    val feedingGuideMl: IntRange,
-    val feedingIntervalHours: ClosedFloatingPointRange<Double>,
+    val feedingGuideMl: RangeDto<Int>,
+    val feedingIntervalHours: RangeDto<Double>,
 )
 
 @Service
@@ -27,8 +29,8 @@ class GrowthStageService {
                 "황달 여부를 주의 깊게 관찰하세요.",
                 "체중이 출생 체중의 7~10% 이내로 감소하는 건 정상이에요.",
             ),
-            feedingGuideMl = 5..15,
-            feedingIntervalHours = 2.0..3.0,
+            feedingGuideMl = RangeDto(5, 15),
+            feedingIntervalHours = RangeDto(2.0, 3.0),
         )
         daysOld <= 7 -> GrowthStageResponse(
             daysOld = daysOld,
@@ -41,8 +43,8 @@ class GrowthStageService {
                 "탯줄 관리에 신경 써주세요.",
                 "황달이 심해지면 즉시 병원을 방문하세요.",
             ),
-            feedingGuideMl = 15..30,
-            feedingIntervalHours = 2.0..3.0,
+            feedingGuideMl = RangeDto(15, 30),
+            feedingIntervalHours = RangeDto(2.0, 3.0),
         )
         daysOld <= 14 -> GrowthStageResponse(
             daysOld = daysOld,
@@ -55,8 +57,8 @@ class GrowthStageService {
                 "수면 패턴이 아직 불규칙한 건 정상이에요.",
                 "배꼽이 떨어지는 시기예요.",
             ),
-            feedingGuideMl = 30..60,
-            feedingIntervalHours = 2.0..3.0,
+            feedingGuideMl = RangeDto(30, 60),
+            feedingIntervalHours = RangeDto(2.0, 3.0),
         )
         daysOld <= 30 -> GrowthStageResponse(
             daysOld = daysOld,
@@ -69,8 +71,8 @@ class GrowthStageService {
                 "첫 번째 예방접종(BCG, B형 간염) 확인하세요.",
                 "수유 후 역류가 있으면 상체를 약간 올려주세요.",
             ),
-            feedingGuideMl = 60..90,
-            feedingIntervalHours = 2.5..3.0,
+            feedingGuideMl = RangeDto(60, 90),
+            feedingIntervalHours = RangeDto(2.5, 3.0),
         )
         daysOld <= 60 -> GrowthStageResponse(
             daysOld = daysOld,
@@ -83,8 +85,8 @@ class GrowthStageService {
                 "2개월 예방접종 일정을 확인하세요.",
                 "수면 시간이 조금씩 길어질 수 있어요.",
             ),
-            feedingGuideMl = 90..120,
-            feedingIntervalHours = 3.0..3.5,
+            feedingGuideMl = RangeDto(90, 120),
+            feedingIntervalHours = RangeDto(3.0, 3.5),
         )
         daysOld <= 90 -> GrowthStageResponse(
             daysOld = daysOld,
@@ -97,8 +99,8 @@ class GrowthStageService {
                 "수면 패턴이 점차 자리 잡혀요.",
                 "하루 4~6회 수유로 줄어들 수 있어요.",
             ),
-            feedingGuideMl = 120..150,
-            feedingIntervalHours = 3.0..4.0,
+            feedingGuideMl = RangeDto(120, 150),
+            feedingIntervalHours = RangeDto(3.0, 4.0),
         )
         else -> GrowthStageResponse(
             daysOld = daysOld,
@@ -110,8 +112,8 @@ class GrowthStageService {
                 "예방접종 일정을 놓치지 마세요.",
                 "이유식 시작(4~6개월)을 준비하세요.",
             ),
-            feedingGuideMl = 150..240,
-            feedingIntervalHours = 3.5..4.5,
+            feedingGuideMl = RangeDto(150, 240),
+            feedingIntervalHours = RangeDto(3.5, 4.5),
         )
     }
 }
