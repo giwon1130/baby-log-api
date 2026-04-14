@@ -10,4 +10,8 @@ class StatsController(private val statsService: StatsService) {
     @GetMapping("/today")
     fun getTodayStats(@PathVariable babyId: String): ApiResponse<TodayStatsResponse> =
         ApiResponse.ok(statsService.getTodayStats(babyId))
+
+    @GetMapping("/weekly")
+    fun getWeeklyStats(@PathVariable babyId: String): ApiResponse<WeeklyStatsResponse> =
+        ApiResponse.ok(statsService.getWeeklyStats(babyId))
 }

@@ -25,6 +25,13 @@ data class CreateFeedRequest(
     val note: String = "",
 )
 
+data class UpdateFeedRequest(
+    val fedAt: String? = null,
+    val amountMl: Int? = null,
+    val feedType: String? = null,
+    val note: String? = null,
+)
+
 @Service
 class FeedService(private val jdbc: JdbcTemplate) {
 
@@ -81,9 +88,45 @@ class FeedService(private val jdbc: JdbcTemplate) {
             )
         }.getOrNull()
 
+    fun updateFeed(babyId: String, feedId: String, request: UpdateFeedRequest): FeedResponse {
+        val fedAt = request.fedAt?.let { OffsetDateTime.parse(it) }
+        val updateParts = mutableListOf<String>()
+        val params = mutableListOf<Any>()
+
+        if (request.amountMl != null) { updateParts += "amount_ml = ?"; params += request.amountMl }
+        if (request.feedType != null) { updateParts += "feed_type = ?"; params += request.feedType }
+        if (request.note != null) { updateParts += "note = ?"; params += request.note }
+        if (fedAt != null) { updateParts += "fed_at = ?"; params += fedAt.toString() }
+
+        if (updateParts.isNotEmpty()) {
+            params += feedId; params += babyId
+            jdbc.update(
+                "update bl_feed_records set ${updateParts.joinToString(", ")} where id = ? and baby_id = ?",
+                *params.toTypedArray(),
+            )
+        }
+        return getFeed(babyId, feedId)
+    }
+
     fun deleteFeed(babyId: String, feedId: String) {
         jdbc.update("delete from bl_feed_records where id = ? and baby_id = ?", feedId, babyId)
     }
+
+    private fun getFeed(babyId: String, feedId: String): FeedResponse =
+        jdbc.queryForObject(
+            "select * from bl_feed_records where id = ? and baby_id = ?",
+            { rs, _ ->
+                toResponse(
+                    id = rs.getString("id"),
+                    babyId = rs.getString("baby_id"),
+                    fedAt = OffsetDateTime.parse(rs.getString("fed_at")),
+                    amountMl = rs.getInt("amount_ml"),
+                    feedType = rs.getString("feed_type"),
+                    note = rs.getString("note"),
+                )
+            },
+            feedId, babyId,
+        ) ?: throw IllegalArgumentException("수유 기록을 찾을 수 없어.")
 
     private fun toResponse(
         id: String,

@@ -24,6 +24,13 @@ class FeedController(private val feedService: FeedService) {
     fun getLatestFeed(@PathVariable babyId: String): ApiResponse<FeedResponse?> =
         ApiResponse.ok(feedService.getLatestFeed(babyId))
 
+    @PutMapping("/{feedId}")
+    fun updateFeed(
+        @PathVariable babyId: String,
+        @PathVariable feedId: String,
+        @RequestBody request: UpdateFeedRequest,
+    ): ApiResponse<FeedResponse> = ApiResponse.ok(feedService.updateFeed(babyId, feedId, request))
+
     @DeleteMapping("/{feedId}")
     fun deleteFeed(
         @PathVariable babyId: String,
