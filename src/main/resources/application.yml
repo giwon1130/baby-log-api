@@ -1,5 +1,6 @@
 server:
-  port: ${SERVER_PORT:8092}
+  # Railway injects PORT; fall back to SERVER_PORT then 8092
+  port: ${PORT:${SERVER_PORT:8092}}
 
 spring:
   application:
@@ -7,7 +8,9 @@ spring:
 
 baby-log:
   db:
-    url: ${BABY_LOG_DB_URL:jdbc:postgresql://localhost:5492/babylog}
-    username: ${BABY_LOG_DB_USERNAME:babylog}
-    password: ${BABY_LOG_DB_PASSWORD:babylog}
+    # Railway PostgreSQL provides JDBC_DATABASE_URL (jdbc:postgresql://...)
+    # Fall back to individual env vars for local dev
+    url: ${JDBC_DATABASE_URL:${BABY_LOG_DB_URL:jdbc:postgresql://localhost:5492/babylog}}
+    username: ${PGUSER:${BABY_LOG_DB_USERNAME:babylog}}
+    password: ${PGPASSWORD:${BABY_LOG_DB_PASSWORD:babylog}}
     driver-class-name: org.postgresql.Driver
