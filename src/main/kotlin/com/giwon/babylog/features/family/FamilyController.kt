@@ -11,6 +11,10 @@ class FamilyController(private val familyService: FamilyService) {
     fun createFamily(): ApiResponse<FamilyResponse> =
         ApiResponse.ok(familyService.createFamily())
 
+    @GetMapping("/{familyId}")
+    fun getFamily(@PathVariable familyId: String): ApiResponse<FamilyResponse> =
+        ApiResponse.ok(familyService.getFamily(familyId))
+
     @GetMapping("/join/{inviteCode}")
     fun joinFamily(@PathVariable inviteCode: String): ApiResponse<FamilyResponse> =
         ApiResponse.ok(familyService.joinFamily(inviteCode))

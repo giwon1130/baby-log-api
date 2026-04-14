@@ -19,6 +19,14 @@ class FamilyService(private val jdbc: JdbcTemplate) {
         return FamilyResponse(id, inviteCode)
     }
 
+    fun getFamily(familyId: String): FamilyResponse {
+        return jdbc.queryForObject(
+            "select id, invite_code from bl_families where id = ?",
+            { rs, _ -> FamilyResponse(rs.getString("id"), rs.getString("invite_code")) },
+            familyId,
+        ) ?: throw IllegalArgumentException("가족을 찾을 수 없어.")
+    }
+
     fun joinFamily(inviteCode: String): FamilyResponse {
         return jdbc.queryForObject(
             "select id, invite_code from bl_families where invite_code = ?",

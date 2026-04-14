@@ -22,4 +22,11 @@ class BabyController(private val babyService: BabyService) {
         @PathVariable familyId: String,
         @PathVariable babyId: String,
     ): ApiResponse<BabyResponse> = ApiResponse.ok(babyService.getBaby(familyId, babyId))
+
+    @PutMapping("/{babyId}")
+    fun updateBaby(
+        @PathVariable familyId: String,
+        @PathVariable babyId: String,
+        @RequestBody request: UpdateBabyRequest,
+    ): ApiResponse<BabyResponse> = ApiResponse.ok(babyService.updateBaby(familyId, babyId, request))
 }

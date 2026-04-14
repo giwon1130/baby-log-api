@@ -25,6 +25,12 @@ data class CreateBabyRequest(
     val birthHeightCm: Double? = null,
 )
 
+data class UpdateBabyRequest(
+    val name: String? = null,
+    val birthWeightG: Int? = null,
+    val birthHeightCm: Double? = null,
+)
+
 @Service
 class BabyService(private val jdbc: JdbcTemplate) {
 
@@ -45,6 +51,18 @@ class BabyService(private val jdbc: JdbcTemplate) {
             { rs, _ -> rs.toBabyResponse() },
             familyId,
         )
+
+    fun updateBaby(familyId: String, babyId: String, request: UpdateBabyRequest): BabyResponse {
+        val sets = mutableListOf<String>()
+        val params = mutableListOf<Any?>()
+        request.name?.let { sets += "name = ?"; params += it }
+        if (request.birthWeightG != null) { sets += "birth_weight_g = ?"; params += request.birthWeightG }
+        if (request.birthHeightCm != null) { sets += "birth_height_cm = ?"; params += request.birthHeightCm }
+        if (sets.isEmpty()) return getBaby(familyId, babyId)
+        params += babyId; params += familyId
+        jdbc.update("update bl_babies set ${sets.joinToString()} where id = ? and family_id = ?", *params.toTypedArray())
+        return getBaby(familyId, babyId)
+    }
 
     fun getBaby(familyId: String, babyId: String): BabyResponse =
         jdbc.queryForObject(
