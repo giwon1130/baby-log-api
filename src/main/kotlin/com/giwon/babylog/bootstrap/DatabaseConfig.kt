@@ -75,10 +75,32 @@ class SchemaInitializer(private val jdbcTemplate: JdbcTemplate) {
             create table if not exists bl_diaper_records (
                 id varchar(36) primary key,
                 baby_id varchar(36) not null references bl_babies(id),
-                recorded_at timestamptz not null,
+                changed_at timestamptz not null,
                 diaper_type varchar(20) not null,
-                color varchar(30) not null default '',
-                consistency varchar(30) not null default '',
+                note text not null default '',
+                created_at timestamptz not null default now()
+            )
+        """.trimIndent())
+
+        jdbcTemplate.execute("""
+            create table if not exists bl_growth_records (
+                id varchar(36) primary key,
+                baby_id varchar(36) not null references bl_babies(id),
+                measured_at timestamptz not null,
+                weight_g integer,
+                height_cm double precision,
+                head_cm double precision,
+                note text not null default '',
+                created_at timestamptz not null default now()
+            )
+        """.trimIndent())
+
+        jdbcTemplate.execute("""
+            create table if not exists bl_sleep_records (
+                id varchar(36) primary key,
+                baby_id varchar(36) not null references bl_babies(id),
+                slept_at timestamptz not null,
+                woke_at timestamptz,
                 note text not null default '',
                 created_at timestamptz not null default now()
             )
