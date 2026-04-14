@@ -39,7 +39,7 @@ class BabyService(private val jdbc: JdbcTemplate) {
         jdbc.update(
             """insert into bl_babies (id, family_id, name, birth_date, gender, birth_weight_g, birth_height_cm)
                values (?, ?, ?, ?, ?, ?, ?)""",
-            id, familyId, request.name, request.birthDate,
+            id, familyId, request.name, LocalDate.parse(request.birthDate),
             request.gender, request.birthWeightG, request.birthHeightCm,
         )
         return getBaby(familyId, id)

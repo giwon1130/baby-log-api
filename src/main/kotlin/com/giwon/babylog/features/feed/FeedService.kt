@@ -43,7 +43,7 @@ class FeedService(private val jdbc: JdbcTemplate) {
         jdbc.update(
             """insert into bl_feed_records (id, baby_id, fed_at, amount_ml, feed_type, note)
                values (?, ?, ?, ?, ?, ?)""",
-            id, babyId, fedAt.toString(), request.amountMl, request.feedType, request.note,
+            id, babyId, fedAt, request.amountMl, request.feedType, request.note,
         )
         return toResponse(id, babyId, fedAt, request.amountMl, request.feedType, request.note)
     }
@@ -62,7 +62,7 @@ class FeedService(private val jdbc: JdbcTemplate) {
             toResponse(
                 id = rs.getString("id"),
                 babyId = rs.getString("baby_id"),
-                fedAt = OffsetDateTime.parse(rs.getString("fed_at")),
+                fedAt = rs.getObject("fed_at", OffsetDateTime::class.java),
                 amountMl = rs.getInt("amount_ml"),
                 feedType = rs.getString("feed_type"),
                 note = rs.getString("note"),
@@ -78,7 +78,7 @@ class FeedService(private val jdbc: JdbcTemplate) {
                     toResponse(
                         id = rs.getString("id"),
                         babyId = rs.getString("baby_id"),
-                        fedAt = OffsetDateTime.parse(rs.getString("fed_at")),
+                        fedAt = rs.getObject("fed_at", OffsetDateTime::class.java),
                         amountMl = rs.getInt("amount_ml"),
                         feedType = rs.getString("feed_type"),
                         note = rs.getString("note"),
@@ -96,7 +96,7 @@ class FeedService(private val jdbc: JdbcTemplate) {
         if (request.amountMl != null) { updateParts += "amount_ml = ?"; params += request.amountMl }
         if (request.feedType != null) { updateParts += "feed_type = ?"; params += request.feedType }
         if (request.note != null) { updateParts += "note = ?"; params += request.note }
-        if (fedAt != null) { updateParts += "fed_at = ?"; params += fedAt.toString() }
+        if (fedAt != null) { updateParts += "fed_at = ?"; params += fedAt }
 
         if (updateParts.isNotEmpty()) {
             params += feedId; params += babyId
@@ -119,7 +119,7 @@ class FeedService(private val jdbc: JdbcTemplate) {
                 toResponse(
                     id = rs.getString("id"),
                     babyId = rs.getString("baby_id"),
-                    fedAt = OffsetDateTime.parse(rs.getString("fed_at")),
+                    fedAt = rs.getObject("fed_at", OffsetDateTime::class.java),
                     amountMl = rs.getInt("amount_ml"),
                     feedType = rs.getString("feed_type"),
                     note = rs.getString("note"),

@@ -38,7 +38,7 @@ class DiaperService(private val jdbc: JdbcTemplate) {
         jdbc.update(
             """insert into bl_diaper_records (id, baby_id, changed_at, diaper_type, note)
                values (?, ?, ?, ?, ?)""",
-            id, babyId, changedAt.toString(), request.diaperType, request.note,
+            id, babyId, changedAt, request.diaperType, request.note,
         )
         return DiaperResponse(
             id = id, babyId = babyId, changedAt = changedAt.toString(),
@@ -102,7 +102,7 @@ class DiaperService(private val jdbc: JdbcTemplate) {
 
         jdbc.update(
             "update bl_diaper_records set changed_at = ?, diaper_type = ?, note = ? where id = ? and baby_id = ?",
-            newChangedAt.toString(), newType, newNote, diaperId, babyId,
+            newChangedAt, newType, newNote, diaperId, babyId,
         )
         return current.copy(changedAt = newChangedAt.toString(), diaperType = newType, note = newNote)
     }
