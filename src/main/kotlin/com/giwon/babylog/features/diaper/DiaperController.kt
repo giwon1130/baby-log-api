@@ -16,10 +16,20 @@ class DiaperController(private val diaperService: DiaperService) {
     @GetMapping
     fun getDiapers(
         @PathVariable babyId: String,
-        @RequestParam(defaultValue = "20") limit: Int,
-    ): ApiResponse<List<DiaperResponse>> = ApiResponse.ok(diaperService.getDiapers(babyId, limit))
+        @RequestParam(defaultValue = "50") limit: Int,
+        @RequestParam(required = false) date: String?,
+    ): ApiResponse<List<DiaperResponse>> = ApiResponse.ok(diaperService.getDiapers(babyId, limit, date))
 
     @GetMapping("/latest")
     fun getLatestDiaper(@PathVariable babyId: String): ApiResponse<DiaperResponse?> =
         ApiResponse.ok(diaperService.getLatestDiaper(babyId))
+
+    @DeleteMapping("/{diaperId}")
+    fun deleteDiaper(
+        @PathVariable babyId: String,
+        @PathVariable diaperId: String,
+    ): ApiResponse<Unit> {
+        diaperService.deleteDiaper(babyId, diaperId)
+        return ApiResponse.ok(Unit)
+    }
 }

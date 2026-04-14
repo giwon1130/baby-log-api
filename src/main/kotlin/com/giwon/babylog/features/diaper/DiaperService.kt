@@ -2,6 +2,7 @@ package com.giwon.babylog.features.diaper
 
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
+import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
@@ -16,7 +17,7 @@ data class DiaperResponse(
 
 data class CreateDiaperRequest(
     val changedAt: String? = null,
-    val diaperType: String = "WET",   // WET | DIRTY | MIXED | DRY
+    val diaperType: String = "WET",
     val note: String = "",
 )
 
@@ -34,29 +35,31 @@ class DiaperService(private val jdbc: JdbcTemplate) {
             id, babyId, changedAt.toString(), request.diaperType, request.note,
         )
         return DiaperResponse(
-            id = id,
-            babyId = babyId,
-            changedAt = changedAt.toString(),
-            diaperType = request.diaperType,
-            note = request.note,
+            id = id, babyId = babyId, changedAt = changedAt.toString(),
+            diaperType = request.diaperType, note = request.note,
         )
     }
 
-    fun getDiapers(babyId: String, limit: Int = 20): List<DiaperResponse> =
-        jdbc.query(
+    fun getDiapers(babyId: String, limit: Int = 50, date: String? = null): List<DiaperResponse> {
+        val (sql, params) = if (date != null) {
+            val start = LocalDate.parse(date).atStartOfDay(ZoneOffset.UTC).toString()
+            val end = LocalDate.parse(date).plusDays(1).atStartOfDay(ZoneOffset.UTC).toString()
+            """select * from bl_diaper_records where baby_id = ? and changed_at >= ? and changed_at < ?
+               order by changed_at desc limit ?""" to arrayOf<Any>(babyId, start, end, limit)
+        } else {
             """select * from bl_diaper_records where baby_id = ?
-               order by changed_at desc limit ?""",
-            { rs, _ ->
-                DiaperResponse(
-                    id = rs.getString("id"),
-                    babyId = rs.getString("baby_id"),
-                    changedAt = rs.getString("changed_at"),
-                    diaperType = rs.getString("diaper_type"),
-                    note = rs.getString("note"),
-                )
-            },
-            babyId, limit,
-        )
+               order by changed_at desc limit ?""" to arrayOf<Any>(babyId, limit)
+        }
+        return jdbc.query(sql, { rs, _ ->
+            DiaperResponse(
+                id = rs.getString("id"),
+                babyId = rs.getString("baby_id"),
+                changedAt = rs.getString("changed_at"),
+                diaperType = rs.getString("diaper_type"),
+                note = rs.getString("note"),
+            )
+        }, *params)
+    }
 
     fun getLatestDiaper(babyId: String): DiaperResponse? =
         runCatching {
@@ -74,4 +77,8 @@ class DiaperService(private val jdbc: JdbcTemplate) {
                 babyId,
             )
         }.getOrNull()
+
+    fun deleteDiaper(babyId: String, diaperId: String) {
+        jdbc.update("delete from bl_diaper_records where id = ? and baby_id = ?", diaperId, babyId)
+    }
 }

@@ -49,6 +49,10 @@ class GrowthRecordService(private val jdbc: JdbcTemplate) {
         )
     }
 
+    fun deleteGrowthRecord(babyId: String, recordId: String) {
+        jdbc.update("delete from bl_growth_records where id = ? and baby_id = ?", recordId, babyId)
+    }
+
     fun getGrowthRecords(babyId: String, limit: Int = 20): List<GrowthRecordResponse> =
         jdbc.query(
             """select * from bl_growth_records where baby_id = ?

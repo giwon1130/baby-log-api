@@ -16,10 +16,20 @@ class FeedController(private val feedService: FeedService) {
     @GetMapping
     fun getFeeds(
         @PathVariable babyId: String,
-        @RequestParam(defaultValue = "20") limit: Int,
-    ): ApiResponse<List<FeedResponse>> = ApiResponse.ok(feedService.getFeeds(babyId, limit))
+        @RequestParam(defaultValue = "50") limit: Int,
+        @RequestParam(required = false) date: String?,
+    ): ApiResponse<List<FeedResponse>> = ApiResponse.ok(feedService.getFeeds(babyId, limit, date))
 
     @GetMapping("/latest")
     fun getLatestFeed(@PathVariable babyId: String): ApiResponse<FeedResponse?> =
         ApiResponse.ok(feedService.getLatestFeed(babyId))
+
+    @DeleteMapping("/{feedId}")
+    fun deleteFeed(
+        @PathVariable babyId: String,
+        @PathVariable feedId: String,
+    ): ApiResponse<Unit> {
+        feedService.deleteFeed(babyId, feedId)
+        return ApiResponse.ok(Unit)
+    }
 }

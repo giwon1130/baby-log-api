@@ -2,6 +2,7 @@ package com.giwon.babylog.features.feed
 
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
+import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
@@ -40,22 +41,27 @@ class FeedService(private val jdbc: JdbcTemplate) {
         return toResponse(id, babyId, fedAt, request.amountMl, request.feedType, request.note)
     }
 
-    fun getFeeds(babyId: String, limit: Int = 20): List<FeedResponse> =
-        jdbc.query(
+    fun getFeeds(babyId: String, limit: Int = 20, date: String? = null): List<FeedResponse> {
+        val (sql, params) = if (date != null) {
+            val start = LocalDate.parse(date).atStartOfDay(ZoneOffset.UTC).toString()
+            val end = LocalDate.parse(date).plusDays(1).atStartOfDay(ZoneOffset.UTC).toString()
+            """select * from bl_feed_records where baby_id = ? and fed_at >= ? and fed_at < ?
+               order by fed_at desc limit ?""" to arrayOf<Any>(babyId, start, end, limit)
+        } else {
             """select * from bl_feed_records where baby_id = ?
-               order by fed_at desc limit ?""",
-            { rs, _ ->
-                toResponse(
-                    id = rs.getString("id"),
-                    babyId = rs.getString("baby_id"),
-                    fedAt = OffsetDateTime.parse(rs.getString("fed_at")),
-                    amountMl = rs.getInt("amount_ml"),
-                    feedType = rs.getString("feed_type"),
-                    note = rs.getString("note"),
-                )
-            },
-            babyId, limit,
-        )
+               order by fed_at desc limit ?""" to arrayOf<Any>(babyId, limit)
+        }
+        return jdbc.query(sql, { rs, _ ->
+            toResponse(
+                id = rs.getString("id"),
+                babyId = rs.getString("baby_id"),
+                fedAt = OffsetDateTime.parse(rs.getString("fed_at")),
+                amountMl = rs.getInt("amount_ml"),
+                feedType = rs.getString("feed_type"),
+                note = rs.getString("note"),
+            )
+        }, *params)
+    }
 
     fun getLatestFeed(babyId: String): FeedResponse? =
         runCatching {
@@ -74,6 +80,10 @@ class FeedService(private val jdbc: JdbcTemplate) {
                 babyId,
             )
         }.getOrNull()
+
+    fun deleteFeed(babyId: String, feedId: String) {
+        jdbc.update("delete from bl_feed_records where id = ? and baby_id = ?", feedId, babyId)
+    }
 
     private fun toResponse(
         id: String,
@@ -97,13 +107,6 @@ class FeedService(private val jdbc: JdbcTemplate) {
         )
     }
 
-    /**
-     * 분유량에 따른 다음 수유 간격 (신생아 기준)
-     * - 60ml 이하: 2시간
-     * - 60~90ml: 2.5시간
-     * - 90~120ml: 3시간
-     * - 120ml 이상: 3.5시간
-     */
     private fun calculateNextFeedInterval(amountMl: Int): Double = when {
         amountMl <= 60 -> 2.0
         amountMl <= 90 -> 2.5

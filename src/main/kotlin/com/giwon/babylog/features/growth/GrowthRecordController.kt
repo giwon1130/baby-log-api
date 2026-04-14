@@ -20,4 +20,13 @@ class GrowthRecordController(private val growthRecordService: GrowthRecordServic
         @RequestParam(defaultValue = "20") limit: Int,
     ): ApiResponse<List<GrowthRecordResponse>> =
         ApiResponse.ok(growthRecordService.getGrowthRecords(babyId, limit))
+
+    @DeleteMapping("/{recordId}")
+    fun deleteGrowthRecord(
+        @PathVariable babyId: String,
+        @PathVariable recordId: String,
+    ): ApiResponse<Unit> {
+        growthRecordService.deleteGrowthRecord(babyId, recordId)
+        return ApiResponse.ok(Unit)
+    }
 }

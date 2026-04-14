@@ -78,6 +78,10 @@ class SleepService(private val jdbc: JdbcTemplate) {
             )
         }.getOrNull()
 
+    fun deleteSleep(babyId: String, sleepId: String) {
+        jdbc.update("delete from bl_sleep_records where id = ? and baby_id = ?", sleepId, babyId)
+    }
+
     private fun getSleep(babyId: String, sleepId: String): SleepResponse =
         jdbc.queryForObject(
             "select * from bl_sleep_records where id = ? and baby_id = ?",
