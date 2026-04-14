@@ -25,6 +25,12 @@ data class EndSleepRequest(
     val wokeAt: String? = null,
 )
 
+data class UpdateSleepRequest(
+    val sleptAt: String? = null,
+    val wokeAt: String? = null,
+    val note: String? = null,
+)
+
 @Service
 class SleepService(private val jdbc: JdbcTemplate) {
 
@@ -77,6 +83,24 @@ class SleepService(private val jdbc: JdbcTemplate) {
                 babyId,
             )
         }.getOrNull()
+
+    fun updateSleep(babyId: String, sleepId: String, request: UpdateSleepRequest): SleepResponse {
+        val current = getSleep(babyId, sleepId)
+        val newSleptAt = request.sleptAt?.let { OffsetDateTime.parse(it) }
+            ?: OffsetDateTime.parse(current.sleptAt)
+        val newWokeAt = when {
+            request.wokeAt != null -> OffsetDateTime.parse(request.wokeAt)
+            current.wokeAt != null -> OffsetDateTime.parse(current.wokeAt)
+            else -> null
+        }
+        val newNote = request.note ?: current.note
+
+        jdbc.update(
+            "update bl_sleep_records set slept_at = ?, woke_at = ?, note = ? where id = ? and baby_id = ?",
+            newSleptAt.toString(), newWokeAt?.toString(), newNote, sleepId, babyId,
+        )
+        return getSleep(babyId, sleepId)
+    }
 
     fun deleteSleep(babyId: String, sleepId: String) {
         jdbc.update("delete from bl_sleep_records where id = ? and baby_id = ?", sleepId, babyId)

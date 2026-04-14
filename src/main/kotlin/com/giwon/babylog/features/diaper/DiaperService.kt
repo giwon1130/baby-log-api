@@ -21,6 +21,12 @@ data class CreateDiaperRequest(
     val note: String = "",
 )
 
+data class UpdateDiaperRequest(
+    val changedAt: String? = null,
+    val diaperType: String? = null,
+    val note: String? = null,
+)
+
 @Service
 class DiaperService(private val jdbc: JdbcTemplate) {
 
@@ -77,6 +83,29 @@ class DiaperService(private val jdbc: JdbcTemplate) {
                 babyId,
             )
         }.getOrNull()
+
+    fun updateDiaper(babyId: String, diaperId: String, request: UpdateDiaperRequest): DiaperResponse {
+        val current = jdbc.queryForObject(
+            "select * from bl_diaper_records where id = ? and baby_id = ?",
+            { rs, _ -> DiaperResponse(
+                id = rs.getString("id"), babyId = rs.getString("baby_id"),
+                changedAt = rs.getString("changed_at"), diaperType = rs.getString("diaper_type"),
+                note = rs.getString("note"),
+            )},
+            diaperId, babyId,
+        ) ?: throw IllegalArgumentException("기저귀 기록을 찾을 수 없어요")
+
+        val newChangedAt = request.changedAt?.let { OffsetDateTime.parse(it) }
+            ?: OffsetDateTime.parse(current.changedAt)
+        val newType = request.diaperType ?: current.diaperType
+        val newNote = request.note ?: current.note
+
+        jdbc.update(
+            "update bl_diaper_records set changed_at = ?, diaper_type = ?, note = ? where id = ? and baby_id = ?",
+            newChangedAt.toString(), newType, newNote, diaperId, babyId,
+        )
+        return current.copy(changedAt = newChangedAt.toString(), diaperType = newType, note = newNote)
+    }
 
     fun deleteDiaper(babyId: String, diaperId: String) {
         jdbc.update("delete from bl_diaper_records where id = ? and baby_id = ?", diaperId, babyId)

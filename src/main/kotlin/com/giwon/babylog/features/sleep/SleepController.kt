@@ -31,6 +31,13 @@ class SleepController(private val sleepService: SleepService) {
     fun getActiveSleep(@PathVariable babyId: String): ApiResponse<SleepResponse?> =
         ApiResponse.ok(sleepService.getActiveSleep(babyId))
 
+    @PutMapping("/{sleepId}")
+    fun updateSleep(
+        @PathVariable babyId: String,
+        @PathVariable sleepId: String,
+        @RequestBody request: UpdateSleepRequest,
+    ): ApiResponse<SleepResponse> = ApiResponse.ok(sleepService.updateSleep(babyId, sleepId, request))
+
     @DeleteMapping("/{sleepId}")
     fun deleteSleep(
         @PathVariable babyId: String,

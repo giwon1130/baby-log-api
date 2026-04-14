@@ -24,6 +24,13 @@ class DiaperController(private val diaperService: DiaperService) {
     fun getLatestDiaper(@PathVariable babyId: String): ApiResponse<DiaperResponse?> =
         ApiResponse.ok(diaperService.getLatestDiaper(babyId))
 
+    @PutMapping("/{diaperId}")
+    fun updateDiaper(
+        @PathVariable babyId: String,
+        @PathVariable diaperId: String,
+        @RequestBody request: UpdateDiaperRequest,
+    ): ApiResponse<DiaperResponse> = ApiResponse.ok(diaperService.updateDiaper(babyId, diaperId, request))
+
     @DeleteMapping("/{diaperId}")
     fun deleteDiaper(
         @PathVariable babyId: String,
