@@ -35,7 +35,7 @@ class GrowthRecordService(private val jdbc: JdbcTemplate) {
         jdbc.update(
             """insert into bl_growth_records (id, baby_id, measured_at, weight_g, height_cm, head_cm, note)
                values (?, ?, ?, ?, ?, ?, ?)""",
-            id, babyId, measuredAt.toString(),
+            id, babyId, measuredAt,
             request.weightG, request.heightCm, request.headCm, request.note,
         )
         return GrowthRecordResponse(
@@ -61,7 +61,7 @@ class GrowthRecordService(private val jdbc: JdbcTemplate) {
                 GrowthRecordResponse(
                     id = rs.getString("id"),
                     babyId = rs.getString("baby_id"),
-                    measuredAt = rs.getString("measured_at"),
+                    measuredAt = rs.getObject("measured_at", OffsetDateTime::class.java).toString(),
                     weightG = rs.getObject("weight_g") as? Int,
                     heightCm = rs.getObject("height_cm") as? Double,
                     headCm = rs.getObject("head_cm") as? Double,

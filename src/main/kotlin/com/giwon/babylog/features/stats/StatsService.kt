@@ -32,8 +32,8 @@ class StatsService(private val jdbc: JdbcTemplate) {
         val days = (6 downTo 0).map { today.minusDays(it.toLong()) }
 
         val feedStats = days.map { day ->
-            val start = day.atStartOfDay(ZoneOffset.UTC).toString()
-            val end = day.plusDays(1).atStartOfDay(ZoneOffset.UTC).toString()
+            val start = day.atStartOfDay().atOffset(ZoneOffset.UTC)
+            val end = day.plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC)
             val row = jdbc.queryForMap(
                 """select count(*) as cnt, coalesce(sum(amount_ml), 0) as total_ml
                    from bl_feed_records where baby_id = ? and fed_at >= ? and fed_at < ?""",
@@ -47,8 +47,8 @@ class StatsService(private val jdbc: JdbcTemplate) {
         }
 
         val sleepStats = days.map { day ->
-            val start = day.atStartOfDay(ZoneOffset.UTC).toString()
-            val end = day.plusDays(1).atStartOfDay(ZoneOffset.UTC).toString()
+            val start = day.atStartOfDay().atOffset(ZoneOffset.UTC)
+            val end = day.plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC)
             val row = jdbc.queryForMap(
                 """select count(*) as cnt,
                      coalesce(sum(extract(epoch from
@@ -68,8 +68,8 @@ class StatsService(private val jdbc: JdbcTemplate) {
 
     fun getTodayStats(babyId: String): TodayStatsResponse {
         val today = LocalDate.now(ZoneOffset.UTC)
-        val startOfDay = today.atStartOfDay(ZoneOffset.UTC).toString()
-        val endOfDay = today.plusDays(1).atStartOfDay(ZoneOffset.UTC).toString()
+        val startOfDay = today.atStartOfDay().atOffset(ZoneOffset.UTC)
+        val endOfDay = today.plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC)
 
         val feedStats = jdbc.queryForMap(
             """select count(*) as cnt, coalesce(sum(amount_ml), 0) as total_ml

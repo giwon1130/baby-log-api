@@ -48,8 +48,8 @@ class DiaperService(private val jdbc: JdbcTemplate) {
 
     fun getDiapers(babyId: String, limit: Int = 50, date: String? = null): List<DiaperResponse> {
         val (sql, params) = if (date != null) {
-            val start = LocalDate.parse(date).atStartOfDay(ZoneOffset.UTC).toString()
-            val end = LocalDate.parse(date).plusDays(1).atStartOfDay(ZoneOffset.UTC).toString()
+            val start = LocalDate.parse(date).atStartOfDay().atOffset(ZoneOffset.UTC)
+            val end = LocalDate.parse(date).plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC)
             """select * from bl_diaper_records where baby_id = ? and changed_at >= ? and changed_at < ?
                order by changed_at desc limit ?""" to arrayOf<Any>(babyId, start, end, limit)
         } else {
@@ -60,7 +60,7 @@ class DiaperService(private val jdbc: JdbcTemplate) {
             DiaperResponse(
                 id = rs.getString("id"),
                 babyId = rs.getString("baby_id"),
-                changedAt = rs.getString("changed_at"),
+                changedAt = rs.getObject("changed_at", OffsetDateTime::class.java).toString(),
                 diaperType = rs.getString("diaper_type"),
                 note = rs.getString("note"),
             )
@@ -75,7 +75,7 @@ class DiaperService(private val jdbc: JdbcTemplate) {
                     DiaperResponse(
                         id = rs.getString("id"),
                         babyId = rs.getString("baby_id"),
-                        changedAt = rs.getString("changed_at"),
+                        changedAt = rs.getObject("changed_at", OffsetDateTime::class.java).toString(),
                         diaperType = rs.getString("diaper_type"),
                         note = rs.getString("note"),
                     )
@@ -87,11 +87,15 @@ class DiaperService(private val jdbc: JdbcTemplate) {
     fun updateDiaper(babyId: String, diaperId: String, request: UpdateDiaperRequest): DiaperResponse {
         val current = jdbc.queryForObject(
             "select * from bl_diaper_records where id = ? and baby_id = ?",
-            { rs, _ -> DiaperResponse(
-                id = rs.getString("id"), babyId = rs.getString("baby_id"),
-                changedAt = rs.getString("changed_at"), diaperType = rs.getString("diaper_type"),
-                note = rs.getString("note"),
-            )},
+            { rs, _ ->
+                DiaperResponse(
+                    id = rs.getString("id"),
+                    babyId = rs.getString("baby_id"),
+                    changedAt = rs.getObject("changed_at", OffsetDateTime::class.java).toString(),
+                    diaperType = rs.getString("diaper_type"),
+                    note = rs.getString("note"),
+                )
+            },
             diaperId, babyId,
         ) ?: throw IllegalArgumentException("기저귀 기록을 찾을 수 없어요")
 

@@ -105,5 +105,15 @@ class SchemaInitializer(private val jdbcTemplate: JdbcTemplate) {
                 created_at timestamptz not null default now()
             )
         """.trimIndent())
+
+        jdbcTemplate.execute("""
+            alter table bl_sleep_records
+            add column if not exists note text not null default ''
+        """.trimIndent())
+
+        jdbcTemplate.execute("""
+            alter table bl_sleep_records
+            add column if not exists created_at timestamptz not null default now()
+        """.trimIndent())
     }
 }

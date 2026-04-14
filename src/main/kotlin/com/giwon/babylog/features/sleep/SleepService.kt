@@ -42,7 +42,7 @@ class SleepService(private val jdbc: JdbcTemplate) {
         jdbc.update(
             """insert into bl_sleep_records (id, baby_id, slept_at, note)
                values (?, ?, ?, ?)""",
-            id, babyId, sleptAt.toString(), request.note,
+            id, babyId, sleptAt, request.note,
         )
         return SleepResponse(
             id = id,
@@ -60,7 +60,7 @@ class SleepService(private val jdbc: JdbcTemplate) {
 
         jdbc.update(
             "update bl_sleep_records set woke_at = ? where id = ? and baby_id = ?",
-            wokeAt.toString(), sleepId, babyId,
+            wokeAt, sleepId, babyId,
         )
         return getSleep(babyId, sleepId)
     }
@@ -97,7 +97,7 @@ class SleepService(private val jdbc: JdbcTemplate) {
 
         jdbc.update(
             "update bl_sleep_records set slept_at = ?, woke_at = ?, note = ? where id = ? and baby_id = ?",
-            newSleptAt.toString(), newWokeAt?.toString(), newNote, sleepId, babyId,
+            newSleptAt, newWokeAt, newNote, sleepId, babyId,
         )
         return getSleep(babyId, sleepId)
     }
@@ -114,9 +114,8 @@ class SleepService(private val jdbc: JdbcTemplate) {
         ) ?: throw IllegalArgumentException("수면 기록을 찾을 수 없어.")
 
     private fun java.sql.ResultSet.toSleepResponse(): SleepResponse {
-        val sleptAt = OffsetDateTime.parse(getString("slept_at"))
-        val wokeAtStr = getString("woke_at")
-        val wokeAt = wokeAtStr?.let { OffsetDateTime.parse(it) }
+        val sleptAt = getObject("slept_at", OffsetDateTime::class.java)
+        val wokeAt = getObject("woke_at", OffsetDateTime::class.java)
         val duration = wokeAt?.let { Duration.between(sleptAt, it).toMinutes() }
         return SleepResponse(
             id = getString("id"),

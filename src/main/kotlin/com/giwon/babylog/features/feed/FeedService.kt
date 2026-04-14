@@ -50,8 +50,8 @@ class FeedService(private val jdbc: JdbcTemplate) {
 
     fun getFeeds(babyId: String, limit: Int = 20, date: String? = null): List<FeedResponse> {
         val (sql, params) = if (date != null) {
-            val start = LocalDate.parse(date).atStartOfDay(ZoneOffset.UTC).toString()
-            val end = LocalDate.parse(date).plusDays(1).atStartOfDay(ZoneOffset.UTC).toString()
+            val start = LocalDate.parse(date).atStartOfDay().atOffset(ZoneOffset.UTC)
+            val end = LocalDate.parse(date).plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC)
             """select * from bl_feed_records where baby_id = ? and fed_at >= ? and fed_at < ?
                order by fed_at desc limit ?""" to arrayOf<Any>(babyId, start, end, limit)
         } else {
