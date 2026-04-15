@@ -115,5 +115,12 @@ class SchemaInitializer(private val jdbcTemplate: JdbcTemplate) {
             alter table bl_sleep_records
             add column if not exists created_at timestamptz not null default now()
         """.trimIndent())
+
+        // Indexes for baby_id + timestamp lookups (main query pattern across all record tables)
+        jdbcTemplate.execute("create index if not exists idx_babies_family_id on bl_babies(family_id)")
+        jdbcTemplate.execute("create index if not exists idx_feed_baby_fed on bl_feed_records(baby_id, fed_at desc)")
+        jdbcTemplate.execute("create index if not exists idx_diaper_baby_changed on bl_diaper_records(baby_id, changed_at desc)")
+        jdbcTemplate.execute("create index if not exists idx_sleep_baby_slept on bl_sleep_records(baby_id, slept_at desc)")
+        jdbcTemplate.execute("create index if not exists idx_growth_baby_measured on bl_growth_records(baby_id, measured_at desc)")
     }
 }

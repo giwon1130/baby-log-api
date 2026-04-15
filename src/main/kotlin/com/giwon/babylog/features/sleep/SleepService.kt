@@ -58,11 +58,11 @@ class SleepService(private val jdbc: JdbcTemplate) {
         val wokeAt = request.wokeAt?.let { OffsetDateTime.parse(it) }
             ?: OffsetDateTime.now(ZoneOffset.UTC)
 
-        jdbc.update(
-            "update bl_sleep_records set woke_at = ? where id = ? and baby_id = ?",
+        return jdbc.query(
+            "update bl_sleep_records set woke_at = ? where id = ? and baby_id = ? returning *",
+            { rs, _ -> rs.toSleepResponse() },
             wokeAt, sleepId, babyId,
-        )
-        return getSleep(babyId, sleepId)
+        ).firstOrNull() ?: throw IllegalArgumentException("수면 기록을 찾을 수 없어.")
     }
 
     fun getSleepRecords(babyId: String, limit: Int = 20): List<SleepResponse> =
@@ -95,11 +95,11 @@ class SleepService(private val jdbc: JdbcTemplate) {
         }
         val newNote = request.note ?: current.note
 
-        jdbc.update(
-            "update bl_sleep_records set slept_at = ?, woke_at = ?, note = ? where id = ? and baby_id = ?",
+        return jdbc.query(
+            "update bl_sleep_records set slept_at = ?, woke_at = ?, note = ? where id = ? and baby_id = ? returning *",
+            { rs, _ -> rs.toSleepResponse() },
             newSleptAt, newWokeAt, newNote, sleepId, babyId,
-        )
-        return getSleep(babyId, sleepId)
+        ).firstOrNull() ?: throw IllegalArgumentException("수면 기록을 찾을 수 없어.")
     }
 
     fun deleteSleep(babyId: String, sleepId: String) {

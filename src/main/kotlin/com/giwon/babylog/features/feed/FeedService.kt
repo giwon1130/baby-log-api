@@ -98,14 +98,23 @@ class FeedService(private val jdbc: JdbcTemplate) {
         if (request.note != null) { updateParts += "note = ?"; params += request.note }
         if (fedAt != null) { updateParts += "fed_at = ?"; params += fedAt }
 
-        if (updateParts.isNotEmpty()) {
-            params += feedId; params += babyId
-            jdbc.update(
-                "update bl_feed_records set ${updateParts.joinToString(", ")} where id = ? and baby_id = ?",
-                *params.toTypedArray(),
-            )
-        }
-        return getFeed(babyId, feedId)
+        if (updateParts.isEmpty()) return getFeed(babyId, feedId)
+
+        params += feedId; params += babyId
+        return jdbc.query(
+            "update bl_feed_records set ${updateParts.joinToString(", ")} where id = ? and baby_id = ? returning *",
+            { rs, _ ->
+                toResponse(
+                    id = rs.getString("id"),
+                    babyId = rs.getString("baby_id"),
+                    fedAt = rs.getObject("fed_at", OffsetDateTime::class.java),
+                    amountMl = rs.getInt("amount_ml"),
+                    feedType = rs.getString("feed_type"),
+                    note = rs.getString("note"),
+                )
+            },
+            *params.toTypedArray(),
+        ).firstOrNull() ?: throw IllegalArgumentException("수유 기록을 찾을 수 없어.")
     }
 
     fun deleteFeed(babyId: String, feedId: String) {

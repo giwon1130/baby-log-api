@@ -29,38 +29,49 @@ class StatsService(private val jdbc: JdbcTemplate) {
 
     fun getWeeklyStats(babyId: String): WeeklyStatsResponse {
         val today = LocalDate.now(ZoneOffset.UTC)
+        val weekStart = today.minusDays(6)
+        val start = weekStart.atStartOfDay().atOffset(ZoneOffset.UTC)
+        val end = today.plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC)
         val days = (6 downTo 0).map { today.minusDays(it.toLong()) }
 
-        val feedStats = days.map { day ->
-            val start = day.atStartOfDay().atOffset(ZoneOffset.UTC)
-            val end = day.plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC)
-            val row = jdbc.queryForMap(
-                """select count(*) as cnt, coalesce(sum(amount_ml), 0) as total_ml
-                   from bl_feed_records where baby_id = ? and fed_at >= ? and fed_at < ?""",
-                babyId, start, end,
-            )
-            DailyFeedStat(
-                date = day.toString(),
-                feedCount = (row["cnt"] as Number).toInt(),
-                totalMl = (row["total_ml"] as Number).toInt(),
-            )
-        }
+        // Single GROUP BY query instead of 7 individual queries
+        val feedByDay = jdbc.query(
+            """select date(fed_at at time zone 'UTC') as day,
+                      count(*)::int as cnt,
+                      coalesce(sum(amount_ml), 0)::int as total_ml
+               from bl_feed_records
+               where baby_id = ? and fed_at >= ? and fed_at < ?
+               group by 1""",
+            { rs, _ -> rs.getString("day") to DailyFeedStat(
+                date = rs.getString("day"),
+                feedCount = rs.getInt("cnt"),
+                totalMl = rs.getInt("total_ml"),
+            )},
+            babyId, start, end,
+        ).toMap()
 
+        val sleepByDay = jdbc.query(
+            """select date(slept_at at time zone 'UTC') as day,
+                      count(*)::int as cnt,
+                      coalesce(sum(
+                        extract(epoch from (coalesce(woke_at, now()) - slept_at)) / 60
+                      ), 0)::bigint as total_min
+               from bl_sleep_records
+               where baby_id = ? and slept_at >= ? and slept_at < ?
+               group by 1""",
+            { rs, _ -> rs.getString("day") to DailySleepStat(
+                date = rs.getString("day"),
+                sleepCount = rs.getInt("cnt"),
+                totalMinutes = rs.getLong("total_min"),
+            )},
+            babyId, start, end,
+        ).toMap()
+
+        val feedStats = days.map { day ->
+            feedByDay[day.toString()] ?: DailyFeedStat(date = day.toString(), feedCount = 0, totalMl = 0)
+        }
         val sleepStats = days.map { day ->
-            val start = day.atStartOfDay().atOffset(ZoneOffset.UTC)
-            val end = day.plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC)
-            val row = jdbc.queryForMap(
-                """select count(*) as cnt,
-                     coalesce(sum(extract(epoch from
-                       (coalesce(woke_at::timestamptz, now()) - slept_at::timestamptz)) / 60), 0) as total_min
-                   from bl_sleep_records where baby_id = ? and slept_at >= ? and slept_at < ?""",
-                babyId, start, end,
-            )
-            DailySleepStat(
-                date = day.toString(),
-                sleepCount = (row["cnt"] as Number).toInt(),
-                totalMinutes = (row["total_min"] as Number).toLong(),
-            )
+            sleepByDay[day.toString()] ?: DailySleepStat(date = day.toString(), sleepCount = 0, totalMinutes = 0)
         }
 
         return WeeklyStatsResponse(feedStats = feedStats, sleepStats = sleepStats)
