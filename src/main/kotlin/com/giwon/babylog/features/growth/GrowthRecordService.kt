@@ -24,6 +24,13 @@ data class CreateGrowthRecordRequest(
     val note: String = "",
 )
 
+data class UpdateGrowthRecordRequest(
+    val weightG: Int? = null,
+    val heightCm: Double? = null,
+    val headCm: Double? = null,
+    val note: String? = null,
+)
+
 @Service
 class GrowthRecordService(private val jdbc: JdbcTemplate) {
 
@@ -46,6 +53,37 @@ class GrowthRecordService(private val jdbc: JdbcTemplate) {
             heightCm = request.heightCm,
             headCm = request.headCm,
             note = request.note,
+        )
+    }
+
+    fun updateGrowthRecord(babyId: String, recordId: String, request: UpdateGrowthRecordRequest): GrowthRecordResponse {
+        val current = jdbc.queryForObject(
+            "select * from bl_growth_records where id = ? and baby_id = ?",
+            { rs, _ -> GrowthRecordResponse(
+                id = rs.getString("id"),
+                babyId = rs.getString("baby_id"),
+                measuredAt = rs.getObject("measured_at", OffsetDateTime::class.java).toString(),
+                weightG = rs.getObject("weight_g") as? Int,
+                heightCm = rs.getObject("height_cm") as? Double,
+                headCm = rs.getObject("head_cm") as? Double,
+                note = rs.getString("note"),
+            )},
+            recordId, babyId,
+        ) ?: throw IllegalArgumentException("성장 기록을 찾을 수 없어요")
+
+        jdbc.update(
+            "update bl_growth_records set weight_g = ?, height_cm = ?, head_cm = ?, note = ? where id = ? and baby_id = ?",
+            request.weightG ?: current.weightG,
+            request.heightCm ?: current.heightCm,
+            request.headCm ?: current.headCm,
+            request.note ?: current.note,
+            recordId, babyId,
+        )
+        return current.copy(
+            weightG = request.weightG ?: current.weightG,
+            heightCm = request.heightCm ?: current.heightCm,
+            headCm = request.headCm ?: current.headCm,
+            note = request.note ?: current.note,
         )
     }
 
