@@ -22,6 +22,8 @@ data class TodayStatsResponse(
     val dirtyCount: Int,
     val sleepCount: Int,
     val totalSleepMinutes: Long,
+    val longestSleepMinutes: Long,       // 오늘 최장 연속 수면
+    val avgFeedIntervalMinutes: Double?,  // 오늘 평균 수유 간격 (2회 이상일 때만)
 )
 
 @Service
@@ -104,11 +106,32 @@ class StatsService(private val jdbc: JdbcTemplate) {
                  count(*) as cnt,
                  coalesce(sum(
                    extract(epoch from (coalesce(woke_at::timestamptz, now()) - slept_at::timestamptz)) / 60
-                 ), 0) as total_minutes
+                 ), 0) as total_minutes,
+                 coalesce(max(
+                   extract(epoch from (coalesce(woke_at::timestamptz, now()) - slept_at::timestamptz)) / 60
+                 ), 0) as longest_minutes
                from bl_sleep_records
                where baby_id = ? and slept_at >= ? and slept_at < ?""",
             babyId, startOfDay, endOfDay,
         )
+
+        // 평균 수유 간격: 오늘 수유 시각 오름차순으로 가져와서 인접 간격 평균
+        val avgFeedInterval: Double? = run {
+            val feedTimes = jdbc.queryForList(
+                """select fed_at from bl_feed_records
+                   where baby_id = ? and fed_at >= ? and fed_at < ?
+                   order by fed_at asc""",
+                java.time.OffsetDateTime::class.java,
+                babyId, startOfDay, endOfDay,
+            )
+            if (feedTimes.size < 2) null
+            else {
+                val gaps = feedTimes.zipWithNext { a, b ->
+                    java.time.Duration.between(a, b).toMinutes().toDouble()
+                }
+                gaps.average()
+            }
+        }
 
         return TodayStatsResponse(
             date = today.toString(),
@@ -119,6 +142,8 @@ class StatsService(private val jdbc: JdbcTemplate) {
             dirtyCount = (diaperStats["dirty"] as Number).toInt(),
             sleepCount = (sleepStats["cnt"] as Number).toInt(),
             totalSleepMinutes = (sleepStats["total_minutes"] as Number).toLong(),
+            longestSleepMinutes = (sleepStats["longest_minutes"] as Number).toLong(),
+            avgFeedIntervalMinutes = avgFeedInterval,
         )
     }
 }
