@@ -102,6 +102,9 @@ class SleepService(private val jdbc: JdbcTemplate) {
         ).firstOrNull() ?: throw IllegalArgumentException("수면 기록을 찾을 수 없어.")
     }
 
+    internal fun calculateSleepDuration(sleptAt: OffsetDateTime, wokeAt: OffsetDateTime?): Long? =
+        wokeAt?.let { Duration.between(sleptAt, it).toMinutes() }
+
     fun deleteSleep(babyId: String, sleepId: String) {
         jdbc.update("delete from bl_sleep_records where id = ? and baby_id = ?", sleepId, babyId)
     }
@@ -116,7 +119,7 @@ class SleepService(private val jdbc: JdbcTemplate) {
     private fun java.sql.ResultSet.toSleepResponse(): SleepResponse {
         val sleptAt = getObject("slept_at", OffsetDateTime::class.java)
         val wokeAt = getObject("woke_at", OffsetDateTime::class.java)
-        val duration = wokeAt?.let { Duration.between(sleptAt, it).toMinutes() }
+        val duration = calculateSleepDuration(sleptAt, wokeAt)
         return SleepResponse(
             id = getString("id"),
             babyId = getString("baby_id"),

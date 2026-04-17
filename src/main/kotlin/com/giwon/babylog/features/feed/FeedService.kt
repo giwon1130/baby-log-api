@@ -147,7 +147,7 @@ class FeedService(private val jdbc: JdbcTemplate) {
         )
     }
 
-    private fun calculateNextFeedInterval(
+    internal fun calculateNextFeedInterval(
         amountMl: Int, feedType: String = "FORMULA",
         leftMinutes: Double? = null, rightMinutes: Double? = null,
     ): Double {
