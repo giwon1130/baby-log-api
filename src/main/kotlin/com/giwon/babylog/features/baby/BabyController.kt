@@ -29,4 +29,13 @@ class BabyController(private val babyService: BabyService) {
         @PathVariable babyId: String,
         @RequestBody request: UpdateBabyRequest,
     ): ApiResponse<BabyResponse> = ApiResponse.ok(babyService.updateBaby(familyId, babyId, request))
+
+    @DeleteMapping("/{babyId}")
+    fun deleteBaby(
+        @PathVariable familyId: String,
+        @PathVariable babyId: String,
+    ): ApiResponse<Map<String, Any>> {
+        babyService.deleteBaby(familyId, babyId)
+        return ApiResponse.ok(mapOf("deleted" to true, "babyId" to babyId))
+    }
 }

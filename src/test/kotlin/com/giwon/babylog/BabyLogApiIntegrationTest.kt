@@ -201,6 +201,34 @@ class BabyLogApiIntegrationTest @Autowired constructor(
         deleteJson("/api/v1/babies/$babyId/feeds/$feedId")
     }
 
+    @Test
+    fun `delete baby cascades to all child records`() {
+        val today = LocalDate.now(ZoneOffset.UTC).toString()
+        val morning = "${today}T01:00:00Z"
+
+        val familyId = postJson("/api/v1/families").data()["id"].asText()
+        val babyId = postJson(
+            "/api/v1/families/$familyId/babies",
+            """{"name":"삭제대상","birthDate":"2024-01-01","gender":"FEMALE"}""",
+        ).data()["id"].asText()
+
+        // 자식 레코드 생성: 수유, 기저귀, 수면, 성장, 건강
+        postJson("/api/v1/babies/$babyId/feeds", """{"fedAt":"$morning","amountMl":80,"feedType":"FORMULA"}""")
+        postJson("/api/v1/babies/$babyId/diapers", """{"changedAt":"$morning","diaperType":"WET"}""")
+        postJson("/api/v1/babies/$babyId/sleeps/start", """{"sleptAt":"$morning"}""")
+        postJson("/api/v1/babies/$babyId/growth-records", """{"measuredAt":"$morning","weightG":4500}""")
+
+        // 아기 삭제
+        deleteJson("/api/v1/families/$familyId/babies/$babyId")
+
+        // 모든 자식 레코드와 아기 자체가 사라졌는지 확인 (DB 직접 조회)
+        assertThat(jdbc.queryForObject("select count(*) from bl_babies where id = ?", Int::class.java, babyId)).isEqualTo(0)
+        assertThat(jdbc.queryForObject("select count(*) from bl_feed_records where baby_id = ?", Int::class.java, babyId)).isEqualTo(0)
+        assertThat(jdbc.queryForObject("select count(*) from bl_diaper_records where baby_id = ?", Int::class.java, babyId)).isEqualTo(0)
+        assertThat(jdbc.queryForObject("select count(*) from bl_sleep_records where baby_id = ?", Int::class.java, babyId)).isEqualTo(0)
+        assertThat(jdbc.queryForObject("select count(*) from bl_growth_records where baby_id = ?", Int::class.java, babyId)).isEqualTo(0)
+    }
+
     private fun getJson(path: String): JsonNode =
         parse(
             mockMvc.perform(get(path))

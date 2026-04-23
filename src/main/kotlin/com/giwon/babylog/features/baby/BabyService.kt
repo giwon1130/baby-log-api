@@ -2,6 +2,7 @@ package com.giwon.babylog.features.baby
 
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import java.util.UUID
@@ -70,6 +71,22 @@ class BabyService(private val jdbc: JdbcTemplate) {
             { rs, _ -> rs.toBabyResponse() },
             babyId, familyId,
         ) ?: throw IllegalArgumentException("아기를 찾을 수 없어.")
+
+    @Transactional
+    fun deleteBaby(familyId: String, babyId: String) {
+        // 소유권 확인 (예외 발생시 throws)
+        getBaby(familyId, babyId)
+
+        // FK 제약이 CASCADE가 아니므로 자식 레코드 먼저 삭제
+        jdbc.update("delete from bl_feed_records where baby_id = ?", babyId)
+        jdbc.update("delete from bl_diaper_records where baby_id = ?", babyId)
+        jdbc.update("delete from bl_sleep_records where baby_id = ?", babyId)
+        jdbc.update("delete from bl_growth_records where baby_id = ?", babyId)
+        jdbc.update("delete from bl_health_records where baby_id = ?", babyId)
+
+        val deleted = jdbc.update("delete from bl_babies where id = ? and family_id = ?", babyId, familyId)
+        if (deleted == 0) throw IllegalArgumentException("아기를 찾을 수 없어.")
+    }
 
     private fun java.sql.ResultSet.toBabyResponse(): BabyResponse {
         val birthDate = LocalDate.parse(getString("birth_date"))
