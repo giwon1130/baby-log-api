@@ -173,5 +173,22 @@ class SchemaInitializer(private val jdbcTemplate: JdbcTemplate) {
         """.trimIndent())
         jdbcTemplate.execute("create index if not exists idx_cry_baby_recorded on bl_cry_samples(baby_id, recorded_at desc)")
         jdbcTemplate.execute("create index if not exists idx_cry_baby_confirmed on bl_cry_samples(baby_id) where confirmed_label is not null")
+
+        // Phase 2A — richer acoustic features (pitch, ZCR, rhythmicity).
+        // Added as ALTER so existing rows stay untouched.
+        listOf(
+            "pitch_mean_hz double precision",
+            "pitch_std_hz double precision",
+            "pitch_max_hz double precision",
+            "voiced_ratio double precision",
+            "zcr_mean double precision",
+            "rhythmicity double precision",
+        ).forEach { colDef ->
+            val colName = colDef.substringBefore(' ')
+            jdbcTemplate.execute(
+                "alter table bl_cry_samples add column if not exists $colDef"
+                    .also { _ -> println("[schema] ensure column bl_cry_samples.$colName") }
+            )
+        }
     }
 }

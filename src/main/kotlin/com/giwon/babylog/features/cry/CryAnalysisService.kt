@@ -47,6 +47,13 @@ data class SubmitCryRequest(
     val cryConfidenceMax: Double? = null,
     val avgVolumeDb: Double? = null,
     val peakVolumeDb: Double? = null,
+    // Phase 2A: richer acoustic features
+    val pitchMeanHz: Double? = null,
+    val pitchStdHz: Double? = null,
+    val pitchMaxHz: Double? = null,
+    val voicedRatio: Double? = null,
+    val zcrMean: Double? = null,
+    val rhythmicity: Double? = null,
     val note: String = "",
 )
 
@@ -88,15 +95,27 @@ private data class FeatureVector(
     val volAvg: Double,
     val volPeak: Double,
     val duration: Double,
+    // Acoustic — may be 0 when not captured (old samples)
+    val pitchMean: Double,
+    val pitchStd: Double,
+    val zcrMean: Double,
+    val rhythmicity: Double,
 ) {
     fun distanceTo(other: FeatureVector): Double {
-        // Normalized euclidean distance — features are already roughly 0-1 except duration/db
+        // Normalized euclidean distance — scale each feature to roughly the same range
         val dCry = (cryAvg - other.cryAvg)
         val dCryM = (cryMax - other.cryMax)
         val dVol = (volAvg - other.volAvg) / 40.0   // dB range roughly [-60, -20]
         val dVolP = (volPeak - other.volPeak) / 40.0
         val dDur = (duration - other.duration) / 10.0
-        return sqrt(dCry * dCry + dCryM * dCryM + dVol * dVol + dVolP * dVolP + dDur * dDur)
+        val dPitch = (pitchMean - other.pitchMean) / 400.0   // baby cry F0 typically 300–800 Hz
+        val dPitchStd = (pitchStd - other.pitchStd) / 200.0
+        val dZcr = (zcrMean - other.zcrMean)                 // already 0–1
+        val dRhythm = (rhythmicity - other.rhythmicity)      // already 0–1
+        return sqrt(
+            dCry * dCry + dCryM * dCryM + dVol * dVol + dVolP * dVolP + dDur * dDur +
+                dPitch * dPitch + dPitchStd * dPitchStd + dZcr * dZcr + dRhythm * dRhythm
+        )
     }
 }
 
@@ -127,6 +146,10 @@ class CryAnalysisService(private val jdbc: JdbcTemplate) {
             volAvg = request.avgVolumeDb ?: -50.0,
             volPeak = request.peakVolumeDb ?: -30.0,
             duration = request.durationSec,
+            pitchMean = request.pitchMeanHz ?: 0.0,
+            pitchStd = request.pitchStdHz ?: 0.0,
+            zcrMean = request.zcrMean ?: 0.0,
+            rhythmicity = request.rhythmicity ?: 0.0,
         )
 
         val confirmedHistory = loadConfirmedHistory(babyId)
@@ -139,15 +162,18 @@ class CryAnalysisService(private val jdbc: JdbcTemplate) {
             insert into bl_cry_samples (
                 id, baby_id, recorded_at, duration_sec,
                 cry_confidence_avg, cry_confidence_max, avg_volume_db, peak_volume_db,
+                pitch_mean_hz, pitch_std_hz, pitch_max_hz, voiced_ratio, zcr_mean, rhythmicity,
                 minutes_since_last_feed, minutes_since_last_diaper,
                 minutes_since_last_sleep_start, minutes_since_last_sleep_end,
                 is_during_sleep, baby_age_days, time_of_day_hour,
                 predicted_label, predicted_confidence, note
-            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent(),
             id, babyId, now, request.durationSec,
             request.cryConfidenceAvg, request.cryConfidenceMax,
             request.avgVolumeDb, request.peakVolumeDb,
+            request.pitchMeanHz, request.pitchStdHz, request.pitchMaxHz,
+            request.voicedRatio, request.zcrMean, request.rhythmicity,
             context.minutesSinceFeed, context.minutesSinceDiaper,
             context.minutesSinceSleepStart, context.minutesSinceSleepEnd,
             context.isDuringSleep, context.babyAgeDays, context.timeOfDayHour,
@@ -287,6 +313,36 @@ class CryAnalysisService(private val jdbc: JdbcTemplate) {
             scores[CryLabels.TIRED] = scores[CryLabels.TIRED]!! + 0.08
         }
 
+        // ── 2b. 음향학적 feature 규칙 (피치/리듬/ZCR)
+        //
+        // 연구 문헌 참고:
+        //  - 통증 울음: F0가 높고(>600Hz) 피치 변동 큼, 짧고 날카로움
+        //  - 배고픔 울음: 중간 F0(300–500Hz), 규칙적 리듬 (빨-쉬-빨), 길게 지속
+        //  - 졸림/칭얼: F0 낮고 길게 끈다, 피치 변동 적음
+        //  - 불편함(기저귀 등): ZCR 높은 잡음성 요소 동반 경향
+        if (features.pitchMean > 600 && features.pitchMean > 0) {
+            reasons[CryLabels.PAIN]!! += "높은 음조 (${features.pitchMean.toInt()}Hz)"
+            scores[CryLabels.PAIN] = scores[CryLabels.PAIN]!! + 0.2
+        }
+        if (features.pitchStd > 120) {
+            reasons[CryLabels.PAIN]!! += "피치 변동 큼"
+            scores[CryLabels.PAIN] = scores[CryLabels.PAIN]!! + 0.1
+        }
+        if (features.rhythmicity > 0.45) {
+            reasons[CryLabels.HUNGER]!! += "규칙적 리듬"
+            scores[CryLabels.HUNGER] = scores[CryLabels.HUNGER]!! + 0.15
+        }
+        if (features.pitchMean in 0.1..250.0) {
+            // 낮고 탁한 음조 → 졸림성 칭얼
+            reasons[CryLabels.TIRED]!! += "낮은 음조 (${features.pitchMean.toInt()}Hz)"
+            scores[CryLabels.TIRED] = scores[CryLabels.TIRED]!! + 0.12
+        }
+        if (features.zcrMean > 0.15 && features.volAvg > -35) {
+            // 잡음성이 높음 → 물리적 불편(기저귀/옷 쓸림 등) 동반 가능
+            reasons[CryLabels.DISCOMFORT]!! += "거친 소리"
+            scores[CryLabels.DISCOMFORT] = scores[CryLabels.DISCOMFORT]!! + 0.1
+        }
+
         // ── 3. Per-baby similarity boost (Phase 2 — needs confirmed history)
         if (confirmedHistory.size >= STAGE_SIMILARITY_MIN) {
             for (label in CryLabels.ALL) {
@@ -383,7 +439,8 @@ class CryAnalysisService(private val jdbc: JdbcTemplate) {
     private fun loadConfirmedHistory(babyId: String): List<ConfirmedSample> {
         return jdbc.query(
             """select confirmed_label, duration_sec, cry_confidence_avg, cry_confidence_max,
-                      avg_volume_db, peak_volume_db
+                      avg_volume_db, peak_volume_db,
+                      pitch_mean_hz, pitch_std_hz, zcr_mean, rhythmicity
                from bl_cry_samples
                where baby_id = ? and confirmed_label is not null
                order by confirmed_at desc limit 200""".trimIndent(),
@@ -396,6 +453,10 @@ class CryAnalysisService(private val jdbc: JdbcTemplate) {
                         volAvg = rs.getObject("avg_volume_db") as? Double ?: -50.0,
                         volPeak = rs.getObject("peak_volume_db") as? Double ?: -30.0,
                         duration = rs.getDouble("duration_sec"),
+                        pitchMean = rs.getObject("pitch_mean_hz") as? Double ?: 0.0,
+                        pitchStd = rs.getObject("pitch_std_hz") as? Double ?: 0.0,
+                        zcrMean = rs.getObject("zcr_mean") as? Double ?: 0.0,
+                        rhythmicity = rs.getObject("rhythmicity") as? Double ?: 0.0,
                     ),
                 )
             },
