@@ -1,13 +1,22 @@
 # baby-log-api
 
-신생아 수유/기저귀/수면/성장 기록 Spring Boot API
+신생아 수유/기저귀/수면/성장/울음분석 Spring Boot API ("베이비로그" 백엔드)
+
+Spring Boot 3.3 · Kotlin 1.9 · JdbcTemplate · PostgreSQL
+배포: **Railway** (main 푸쉬 시 자동 배포)
+클라이언트: [`baby-log-app`](https://github.com/giwon1130/baby-log-app) (Expo/React Native)
 
 ## 로컬 실행
 
 ```bash
-# PostgreSQL + API 같이 실행
+# PostgreSQL + API 같이 실행 (baby-log 모노레포 구성 기준)
 cd ../baby-log
 docker-compose up
+```
+
+단독 실행:
+```bash
+./gradlew bootRun
 ```
 
 API: http://localhost:8092
@@ -18,18 +27,38 @@ API: http://localhost:8092
 |--------|--------|------|
 | Family | POST | `/api/v1/families` |
 | Family | GET | `/api/v1/families/join/{inviteCode}` |
+| Family | GET | `/api/v1/families/{familyId}` |
 | Baby | POST/GET | `/api/v1/families/{familyId}/babies` |
+| Baby | PUT/DELETE | `/api/v1/families/{familyId}/babies/{id}` |
 | Feed | POST/GET | `/api/v1/babies/{babyId}/feeds` |
 | Feed | PUT/DELETE | `/api/v1/babies/{babyId}/feeds/{id}` |
 | Feed | GET | `/api/v1/babies/{babyId}/feeds/latest` |
-| Diaper | POST/GET/DELETE | `/api/v1/babies/{babyId}/diapers` |
+| Diaper | POST/GET | `/api/v1/babies/{babyId}/diapers` |
+| Diaper | PUT/DELETE | `/api/v1/babies/{babyId}/diapers/{id}` |
 | Sleep | POST | `/api/v1/babies/{babyId}/sleeps/start` |
 | Sleep | POST | `/api/v1/babies/{babyId}/sleeps/{id}/end` |
-| Sleep | GET/DELETE | `/api/v1/babies/{babyId}/sleeps` |
-| Growth Record | POST/GET/DELETE | `/api/v1/babies/{babyId}/growth-records` |
+| Sleep | GET/PUT/DELETE | `/api/v1/babies/{babyId}/sleeps` |
+| Sleep | GET | `/api/v1/babies/{babyId}/sleeps/active` |
+| Growth Record | POST/GET/PUT/DELETE | `/api/v1/babies/{babyId}/growth-records` |
 | Growth Stage | GET | `/api/v1/babies/{babyId}/growth-stage?familyId=` |
 | Stats | GET | `/api/v1/babies/{babyId}/stats/today` |
 | Stats | GET | `/api/v1/babies/{babyId}/stats/weekly` |
+| Cry | POST | `/api/v1/babies/{babyId}/cry-samples` |
+| Cry | GET | `/api/v1/babies/{babyId}/cry-samples` |
+| Cry | PATCH | `/api/v1/cry-samples/{id}/confirm` |
+
+## 울음 분석
+
+`CryAnalysisService.classify()`가 세 가지를 합산해 라벨별 확률 산출:
+
+1. **컨텍스트 priors** — 마지막 수유/기저귀/수면 경과, 현재 수면 중 여부
+2. **음향 feature 규칙** — 피치 F0(>600Hz → PAIN), 피치 변동, 리듬성(>0.45 → HUNGER), 낮은 음조(<250Hz → TIRED), ZCR
+3. **per-baby similarity 부스트** — 확정 샘플 20개 이상일 때 euclidean 거리 기반 가중치
+
+라벨: `HUNGER` · `TIRED` · `DISCOMFORT` · `BURP` · `PAIN` · `UNKNOWN`
+학습 단계: `HEURISTIC` (~20) → `SIMILARITY` (20~50) → `PERSONAL` (50+)
+
+음성 파일은 받지 않음 — 클라이언트에서 추출한 숫자 feature만 저장.
 
 ## 환경변수
 
@@ -40,73 +69,40 @@ API: http://localhost:8092
 | `BABY_LOG_DB_PASSWORD` | DB 비밀번호 | `babylog` |
 | `SERVER_PORT` | 서버 포트 | `8092` |
 
-## fly.io 배포 (최초 1회 — 집 PC에서)
+## 배포 (Railway)
 
-### 1. flyctl 설치 및 로그인
+`main` 브랜치에 푸쉬하면 Railway가 자동으로 빌드 & 배포. 설정은 Railway 대시보드에서 관리.
 
+### 최초 설정 (참고)
+
+1. [Railway](https://railway.app) 가입 → New Project → Deploy from GitHub
+2. `giwon1130/baby-log-api` 레포 선택 → Kotlin/Gradle 자동 감지
+3. PostgreSQL plugin 추가 → `DATABASE_URL` 자동 주입
+4. Variables에 `BABY_LOG_DB_URL` / `BABY_LOG_DB_USERNAME` / `BABY_LOG_DB_PASSWORD`를 DATABASE_URL 기반으로 매핑
+5. 첫 배포 성공 후 도메인 생성 (예: `baby-log-api-production.up.railway.app`)
+
+### 배포 로그 확인
+Railway CLI 설치 후:
 ```bash
-curl -L https://fly.io/install.sh | sh
-fly auth login
+railway logs
 ```
 
-### 2. 앱 생성
+## 스키마 관리
 
-```bash
-cd ~/workspace/public/lifestyle/baby-log-api
-fly launch --name baby-log-api --region nrt --no-deploy
-```
+현재 Flyway/Liquibase 미사용. `bootstrap/DatabaseConfig.kt`의 `SchemaInitializer.init()`이
+`@PostConstruct`로 `create table if not exists` / `alter table add column if not exists` 실행.
 
-> `fly.toml`이 이미 있으므로 덮어쓸지 물어보면 **No** 선택
+- 테이블 추가: `jdbcTemplate.execute("create table if not exists ...")`
+- 컬럼 추가: `jdbcTemplate.execute("alter table ... add column if not exists <col> <type>")`
+- 삭제/타입 변경: 수동으로 Railway DB에 접속해서 실행
 
-### 3. PostgreSQL 생성 및 연결
+## 로드맵
 
-```bash
-fly postgres create --name baby-log-db --region nrt --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1
-fly postgres attach baby-log-db --app baby-log-api
-```
+- [x] 수유/기저귀/수면/성장/통계 기본 기능
+- [x] 가족 공유 (초대 코드)
+- [x] 울음 분석 Phase 1 (휴리스틱 + 학습 스텁)
+- [x] 울음 분석 Phase 2A (피치/리듬/ZCR feature 추가)
+- [ ] 울음 분석 Phase 2B (YAMNet 임베딩 + Donate-a-Cry 코퍼스 k-NN)
+- [ ] 데이터 Export/백업
 
-attach 후 `DATABASE_URL` Secret이 자동 등록됨.
-
-### 4. 환경변수 설정
-
-```bash
-# attach로 생긴 DATABASE_URL을 확인
-fly secrets list
-
-# BABY_LOG_DB_URL 매핑 (DATABASE_URL 값을 복사해서 사용)
-fly secrets set \
-  BABY_LOG_DB_URL="jdbc:postgresql://<host>:<port>/<db>" \
-  BABY_LOG_DB_USERNAME="<user>" \
-  BABY_LOG_DB_PASSWORD="<password>"
-```
-
-> `fly postgres attach` 후 출력되는 connection string에서 값을 확인
-
-### 5. GitHub Secret 등록 (자동 배포용)
-
-```bash
-# API 토큰 발급
-fly auth token
-```
-
-발급된 토큰을 GitHub에 등록:
-`giwon1130/baby-log-api` → Settings → Secrets and variables → Actions → **New repository secret**
-- Name: `FLY_API_TOKEN`
-- Value: 위에서 복사한 토큰
-
-### 6. 첫 배포
-
-```bash
-fly deploy
-```
-
-이후 `git push`만 하면 GitHub Actions가 자동 배포.
-
-### 배포 확인
-
-```bash
-fly status
-fly logs
-```
-
-앱 URL: `https://baby-log-api.fly.dev`
+더 자세한 에이전트용 가이드는 [AGENTS.md](./AGENTS.md) 참고.
