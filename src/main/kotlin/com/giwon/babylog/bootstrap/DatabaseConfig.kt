@@ -140,5 +140,38 @@ class SchemaInitializer(private val jdbcTemplate: JdbcTemplate) {
         jdbcTemplate.execute("create index if not exists idx_diaper_baby_changed on bl_diaper_records(baby_id, changed_at desc)")
         jdbcTemplate.execute("create index if not exists idx_sleep_baby_slept on bl_sleep_records(baby_id, slept_at desc)")
         jdbcTemplate.execute("create index if not exists idx_growth_baby_measured on bl_growth_records(baby_id, measured_at desc)")
+
+        // Cry analysis samples — audio features + context snapshot + user-confirmed ground truth.
+        // This table powers the per-baby learning loop: the classifier weights its predictions
+        // against past confirmed samples so accuracy improves as the parent keeps confirming.
+        jdbcTemplate.execute("""
+            create table if not exists bl_cry_samples (
+                id varchar(36) primary key,
+                baby_id varchar(36) not null references bl_babies(id),
+                recorded_at timestamptz not null default now(),
+                duration_sec double precision not null,
+                -- audio features (from on-device extraction)
+                cry_confidence_avg double precision,
+                cry_confidence_max double precision,
+                avg_volume_db double precision,
+                peak_volume_db double precision,
+                -- context snapshot at time of recording
+                minutes_since_last_feed integer,
+                minutes_since_last_diaper integer,
+                minutes_since_last_sleep_start integer,
+                minutes_since_last_sleep_end integer,
+                is_during_sleep boolean not null default false,
+                baby_age_days integer,
+                time_of_day_hour integer,
+                -- prediction + user confirmation
+                predicted_label varchar(20) not null,
+                predicted_confidence double precision not null,
+                confirmed_label varchar(20),
+                confirmed_at timestamptz,
+                note text not null default ''
+            )
+        """.trimIndent())
+        jdbcTemplate.execute("create index if not exists idx_cry_baby_recorded on bl_cry_samples(baby_id, recorded_at desc)")
+        jdbcTemplate.execute("create index if not exists idx_cry_baby_confirmed on bl_cry_samples(baby_id) where confirmed_label is not null")
     }
 }
