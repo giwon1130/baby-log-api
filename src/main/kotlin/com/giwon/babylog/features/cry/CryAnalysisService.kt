@@ -213,33 +213,35 @@ class CryAnalysisService(private val jdbc: JdbcTemplate) {
         val scores = mutableMapOf<String, Double>()
 
         // HUNGER: rises with time since last feed. Newborns want feed every 2-3h.
+        // When sinceFeed is null we treat it as "context unknown" — don't default to HUNGER,
+        // otherwise every first-use prediction becomes 배고픔.
         val sinceFeed = context.minutesSinceFeed
         scores[CryLabels.HUNGER] = when {
-            sinceFeed == null -> 0.4                                            // unknown
-            sinceFeed >= 210 -> { reasons[CryLabels.HUNGER]!! += "마지막 수유 ${sinceFeed / 60}시간 ${sinceFeed % 60}분 전"; 0.85 }
-            sinceFeed >= 150 -> { reasons[CryLabels.HUNGER]!! += "마지막 수유 ${sinceFeed / 60}시간 ${sinceFeed % 60}분 전"; 0.65 }
-            sinceFeed >= 90 -> { reasons[CryLabels.HUNGER]!! += "마지막 수유 ${sinceFeed}분 전"; 0.35 }
-            sinceFeed >= 45 -> 0.15
+            sinceFeed == null -> 0.2                                            // unknown → neutral
+            sinceFeed >= 210 -> { reasons[CryLabels.HUNGER]!! += "마지막 수유 ${sinceFeed / 60}시간 ${sinceFeed % 60}분 전"; 0.6 }
+            sinceFeed >= 150 -> { reasons[CryLabels.HUNGER]!! += "마지막 수유 ${sinceFeed / 60}시간 ${sinceFeed % 60}분 전"; 0.45 }
+            sinceFeed >= 90 -> { reasons[CryLabels.HUNGER]!! += "마지막 수유 ${sinceFeed}분 전"; 0.28 }
+            sinceFeed >= 45 -> 0.14
             else -> { reasons[CryLabels.HUNGER]!! += "방금 수유함 (${sinceFeed}분 전)"; 0.05 }
         }
 
         // TIRED: rises with awake time since last sleep end
         val sinceWake = context.minutesSinceSleepEnd
         scores[CryLabels.TIRED] = when {
-            context.isDuringSleep -> 0.1                                        // 자는 중엔 낮음
-            sinceWake == null -> 0.25
-            sinceWake >= 120 -> { reasons[CryLabels.TIRED]!! += "깬 지 ${sinceWake / 60}시간 ${sinceWake % 60}분 경과"; 0.7 }
-            sinceWake >= 75 -> { reasons[CryLabels.TIRED]!! += "깬 지 ${sinceWake}분 경과"; 0.45 }
+            context.isDuringSleep -> 0.12                                       // 자는 중엔 낮음
+            sinceWake == null -> 0.2
+            sinceWake >= 120 -> { reasons[CryLabels.TIRED]!! += "깬 지 ${sinceWake / 60}시간 ${sinceWake % 60}분 경과"; 0.55 }
+            sinceWake >= 75 -> { reasons[CryLabels.TIRED]!! += "깬 지 ${sinceWake}분 경과"; 0.4 }
             sinceWake >= 45 -> 0.2
-            else -> 0.08
+            else -> 0.1
         }
 
         // DISCOMFORT: rises with time since diaper change
         val sinceDiaper = context.minutesSinceDiaper
         scores[CryLabels.DISCOMFORT] = when {
-            sinceDiaper == null -> 0.25
-            sinceDiaper >= 180 -> { reasons[CryLabels.DISCOMFORT]!! += "기저귀 간 지 ${sinceDiaper / 60}시간 경과"; 0.55 }
-            sinceDiaper >= 120 -> { reasons[CryLabels.DISCOMFORT]!! += "기저귀 간 지 ${sinceDiaper}분 경과"; 0.35 }
+            sinceDiaper == null -> 0.2
+            sinceDiaper >= 180 -> { reasons[CryLabels.DISCOMFORT]!! += "기저귀 간 지 ${sinceDiaper / 60}시간 경과"; 0.5 }
+            sinceDiaper >= 120 -> { reasons[CryLabels.DISCOMFORT]!! += "기저귀 간 지 ${sinceDiaper}분 경과"; 0.32 }
             sinceDiaper >= 60 -> 0.2
             else -> 0.1
         }
@@ -252,21 +254,37 @@ class CryAnalysisService(private val jdbc: JdbcTemplate) {
             else -> 0.1
         }
 
-        // PAIN: hardest to infer from context. Small baseline.
-        scores[CryLabels.PAIN] = 0.08
+        // PAIN: hardest to infer from context. Raised baseline so audio signals
+        // (loud/sharp cries) can actually overtake HUNGER.
+        scores[CryLabels.PAIN] = 0.15
 
-        // ── 2. Audio feature adjustments
-        if (features.cryMax > 0.75) {
+        // ── 2. Audio feature adjustments (ADDITIVE so audio can beat context)
+        if (features.cryMax > 0.85) {
+            reasons[CryLabels.PAIN]!! += "매우 강한 울음 (신뢰도 ${(features.cryMax * 100).toInt()}%)"
+            scores[CryLabels.PAIN] = scores[CryLabels.PAIN]!! + 0.35
+        } else if (features.cryMax > 0.7) {
             reasons[CryLabels.PAIN]!! += "강한 울음 (신뢰도 ${(features.cryMax * 100).toInt()}%)"
-            scores[CryLabels.PAIN] = scores[CryLabels.PAIN]!! * 1.8
+            scores[CryLabels.PAIN] = scores[CryLabels.PAIN]!! + 0.18
         }
         if (features.volPeak > -15) {
             reasons[CryLabels.PAIN]!! += "큰 소리"
-            scores[CryLabels.PAIN] = scores[CryLabels.PAIN]!! * 1.4
+            scores[CryLabels.PAIN] = scores[CryLabels.PAIN]!! + 0.15
         }
-        if (features.duration >= 8.0 && features.cryAvg > 0.5) {
-            reasons[CryLabels.HUNGER]!! += "지속적인 울음"
-            scores[CryLabels.HUNGER] = scores[CryLabels.HUNGER]!! * 1.2
+        // 짧고 날카로운 울음 → 통증/놀람 신호
+        if (features.duration in 0.5..3.0 && features.cryMax > 0.6) {
+            reasons[CryLabels.PAIN]!! += "짧고 날카로운 울음"
+            scores[CryLabels.PAIN] = scores[CryLabels.PAIN]!! + 0.12
+        }
+        // 길고 지속적인 울음 → 배고픔
+        if (features.duration >= 10.0 && features.cryAvg > 0.5) {
+            reasons[CryLabels.HUNGER]!! += "길고 지속적인 울음"
+            scores[CryLabels.HUNGER] = scores[CryLabels.HUNGER]!! + 0.1
+        }
+        // 낮은 볼륨의 칭얼거림 → 불편함 또는 졸림
+        if (features.volAvg < -35 && features.cryAvg < 0.5) {
+            reasons[CryLabels.DISCOMFORT]!! += "칭얼거리는 수준"
+            scores[CryLabels.DISCOMFORT] = scores[CryLabels.DISCOMFORT]!! + 0.1
+            scores[CryLabels.TIRED] = scores[CryLabels.TIRED]!! + 0.08
         }
 
         // ── 3. Per-baby similarity boost (Phase 2 — needs confirmed history)
