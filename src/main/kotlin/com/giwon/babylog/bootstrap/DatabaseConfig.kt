@@ -174,6 +174,18 @@ class SchemaInitializer(private val jdbcTemplate: JdbcTemplate) {
         jdbcTemplate.execute("create index if not exists idx_cry_baby_recorded on bl_cry_samples(baby_id, recorded_at desc)")
         jdbcTemplate.execute("create index if not exists idx_cry_baby_confirmed on bl_cry_samples(baby_id) where confirmed_label is not null")
 
+        jdbcTemplate.execute("""
+            create table if not exists bl_push_tokens (
+                device_id varchar(64) primary key,
+                family_id varchar(36) not null references bl_families(id),
+                expo_token text not null,
+                label varchar(100) not null default '',
+                platform varchar(20) not null default 'ios',
+                updated_at timestamptz not null default now()
+            )
+        """.trimIndent())
+        jdbcTemplate.execute("create index if not exists idx_push_tokens_family on bl_push_tokens(family_id)")
+
         // Phase 2A — richer acoustic features (pitch, ZCR, rhythmicity).
         // Added as ALTER so existing rows stay untouched.
         listOf(

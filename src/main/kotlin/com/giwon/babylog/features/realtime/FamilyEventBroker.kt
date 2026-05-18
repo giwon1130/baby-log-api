@@ -1,5 +1,7 @@
 package com.giwon.babylog.features.realtime
 
+import com.giwon.babylog.features.push.ExpoPushSender
+import com.giwon.babylog.features.push.PushTokenService
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Component
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
@@ -8,7 +10,11 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
 @Component
-class FamilyEventBroker(private val jdbc: JdbcTemplate) {
+class FamilyEventBroker(
+    private val jdbc: JdbcTemplate,
+    private val pushTokenService: PushTokenService,
+    private val expoPushSender: ExpoPushSender,
+) {
 
     private val emitters = ConcurrentHashMap<String, CopyOnWriteArrayList<SseEmitter>>()
 
@@ -47,8 +53,40 @@ class FamilyEventBroker(private val jdbc: JdbcTemplate) {
         payload: Any?,
     ) {
         val familyId = familyIdOf(babyId) ?: return
-        publish(FamilyEvent(type, familyId, babyId, actorDeviceId, payload))
+        val resolvedDeviceId = actorDeviceId ?: DeviceIdHolder.get()
+        publish(FamilyEvent(type, familyId, babyId, resolvedDeviceId, payload))
+        sendPushIfNeeded(familyId, babyId, type, resolvedDeviceId)
     }
+
+    private fun sendPushIfNeeded(familyId: String, babyId: String, type: String, actorDeviceId: String?) {
+        val (title, body) = buildNotification(babyId, type) ?: return
+        val tokens = pushTokenService.tokensForFamilyExcept(familyId, actorDeviceId)
+        if (tokens.isEmpty()) return
+        expoPushSender.send(
+            tokens,
+            title,
+            body,
+            mapOf("type" to type, "babyId" to babyId, "familyId" to familyId),
+        )
+    }
+
+    private fun buildNotification(babyId: String, type: String): Pair<String, String>? {
+        val (title, action) = when (type) {
+            "FEED_CREATED" -> "🍼 수유" to "기록"
+            "DIAPER_CREATED" -> "💧 기저귀" to "교체"
+            "SLEEP_STARTED" -> "😴 수면" to "시작"
+            "SLEEP_ENDED" -> "🌅 수면" to "끝"
+            "GROWTH_CREATED" -> "📏 성장" to "측정"
+            "HEALTH_CREATED" -> "🩺 건강" to "기록"
+            else -> return null
+        }
+        val babyName = babyName(babyId) ?: "아기"
+        return title to "$babyName $action 했어요"
+    }
+
+    private fun babyName(babyId: String): String? = runCatching {
+        jdbc.queryForObject("select name from bl_babies where id = ?", String::class.java, babyId)
+    }.getOrNull()
 
     private fun familyIdOf(babyId: String): String? = runCatching {
         jdbc.queryForObject(
