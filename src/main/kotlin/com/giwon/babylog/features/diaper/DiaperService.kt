@@ -1,5 +1,6 @@
 package com.giwon.babylog.features.diaper
 
+import com.giwon.babylog.features.realtime.FamilyEventBroker
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
 import java.time.LocalDate
@@ -28,7 +29,10 @@ data class UpdateDiaperRequest(
 )
 
 @Service
-class DiaperService(private val jdbc: JdbcTemplate) {
+class DiaperService(
+    private val jdbc: JdbcTemplate,
+    private val broker: FamilyEventBroker,
+) {
 
     fun recordDiaper(babyId: String, request: CreateDiaperRequest): DiaperResponse {
         val id = UUID.randomUUID().toString()
@@ -40,10 +44,12 @@ class DiaperService(private val jdbc: JdbcTemplate) {
                values (?, ?, ?, ?, ?)""",
             id, babyId, changedAt, request.diaperType, request.note,
         )
-        return DiaperResponse(
+        val response = DiaperResponse(
             id = id, babyId = babyId, changedAt = changedAt.toString(),
             diaperType = request.diaperType, note = request.note,
         )
+        broker.publishForBaby(babyId, "DIAPER_CREATED", null, response)
+        return response
     }
 
     fun getDiapers(babyId: String, limit: Int = 50, date: String? = null): List<DiaperResponse> {
@@ -108,10 +114,13 @@ class DiaperService(private val jdbc: JdbcTemplate) {
             "update bl_diaper_records set changed_at = ?, diaper_type = ?, note = ? where id = ? and baby_id = ?",
             newChangedAt, newType, newNote, diaperId, babyId,
         )
-        return current.copy(changedAt = newChangedAt.toString(), diaperType = newType, note = newNote)
+        val updated = current.copy(changedAt = newChangedAt.toString(), diaperType = newType, note = newNote)
+        broker.publishForBaby(babyId, "DIAPER_UPDATED", null, updated)
+        return updated
     }
 
     fun deleteDiaper(babyId: String, diaperId: String) {
         jdbc.update("delete from bl_diaper_records where id = ? and baby_id = ?", diaperId, babyId)
+        broker.publishForBaby(babyId, "DIAPER_DELETED", null, mapOf("id" to diaperId))
     }
 }

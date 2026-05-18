@@ -1,5 +1,6 @@
 package com.giwon.babylog.features.sleep
 
+import com.giwon.babylog.features.realtime.FamilyEventBroker
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
 import java.time.Duration
@@ -32,7 +33,10 @@ data class UpdateSleepRequest(
 )
 
 @Service
-class SleepService(private val jdbc: JdbcTemplate) {
+class SleepService(
+    private val jdbc: JdbcTemplate,
+    private val broker: FamilyEventBroker,
+) {
 
     fun startSleep(babyId: String, request: StartSleepRequest): SleepResponse {
         val id = UUID.randomUUID().toString()
@@ -44,7 +48,7 @@ class SleepService(private val jdbc: JdbcTemplate) {
                values (?, ?, ?, ?)""",
             id, babyId, sleptAt, request.note,
         )
-        return SleepResponse(
+        val response = SleepResponse(
             id = id,
             babyId = babyId,
             sleptAt = sleptAt.toString(),
@@ -52,17 +56,21 @@ class SleepService(private val jdbc: JdbcTemplate) {
             durationMinutes = null,
             note = request.note,
         )
+        broker.publishForBaby(babyId, "SLEEP_STARTED", null, response)
+        return response
     }
 
     fun endSleep(babyId: String, sleepId: String, request: EndSleepRequest): SleepResponse {
         val wokeAt = request.wokeAt?.let { OffsetDateTime.parse(it) }
             ?: OffsetDateTime.now(ZoneOffset.UTC)
 
-        return jdbc.query(
+        val updated = jdbc.query(
             "update bl_sleep_records set woke_at = ? where id = ? and baby_id = ? returning *",
             { rs, _ -> rs.toSleepResponse() },
             wokeAt, sleepId, babyId,
         ).firstOrNull() ?: throw IllegalArgumentException("수면 기록을 찾을 수 없어.")
+        broker.publishForBaby(babyId, "SLEEP_ENDED", null, updated)
+        return updated
     }
 
     fun getSleepRecords(babyId: String, limit: Int = 20): List<SleepResponse> =
@@ -95,11 +103,13 @@ class SleepService(private val jdbc: JdbcTemplate) {
         }
         val newNote = request.note ?: current.note
 
-        return jdbc.query(
+        val updated = jdbc.query(
             "update bl_sleep_records set slept_at = ?, woke_at = ?, note = ? where id = ? and baby_id = ? returning *",
             { rs, _ -> rs.toSleepResponse() },
             newSleptAt, newWokeAt, newNote, sleepId, babyId,
         ).firstOrNull() ?: throw IllegalArgumentException("수면 기록을 찾을 수 없어.")
+        broker.publishForBaby(babyId, "SLEEP_UPDATED", null, updated)
+        return updated
     }
 
     internal fun calculateSleepDuration(sleptAt: OffsetDateTime, wokeAt: OffsetDateTime?): Long? =
@@ -107,6 +117,7 @@ class SleepService(private val jdbc: JdbcTemplate) {
 
     fun deleteSleep(babyId: String, sleepId: String) {
         jdbc.update("delete from bl_sleep_records where id = ? and baby_id = ?", sleepId, babyId)
+        broker.publishForBaby(babyId, "SLEEP_DELETED", null, mapOf("id" to sleepId))
     }
 
     private fun getSleep(babyId: String, sleepId: String): SleepResponse =

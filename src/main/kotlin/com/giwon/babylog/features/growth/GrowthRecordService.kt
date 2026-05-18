@@ -1,5 +1,6 @@
 package com.giwon.babylog.features.growth
 
+import com.giwon.babylog.features.realtime.FamilyEventBroker
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
 import java.time.OffsetDateTime
@@ -32,7 +33,10 @@ data class UpdateGrowthRecordRequest(
 )
 
 @Service
-class GrowthRecordService(private val jdbc: JdbcTemplate) {
+class GrowthRecordService(
+    private val jdbc: JdbcTemplate,
+    private val broker: FamilyEventBroker,
+) {
 
     fun recordGrowth(babyId: String, request: CreateGrowthRecordRequest): GrowthRecordResponse {
         val id = UUID.randomUUID().toString()
@@ -45,7 +49,7 @@ class GrowthRecordService(private val jdbc: JdbcTemplate) {
             id, babyId, measuredAt,
             request.weightG, request.heightCm, request.headCm, request.note,
         )
-        return GrowthRecordResponse(
+        val response = GrowthRecordResponse(
             id = id,
             babyId = babyId,
             measuredAt = measuredAt.toString(),
@@ -54,6 +58,8 @@ class GrowthRecordService(private val jdbc: JdbcTemplate) {
             headCm = request.headCm,
             note = request.note,
         )
+        broker.publishForBaby(babyId, "GROWTH_CREATED", null, response)
+        return response
     }
 
     fun updateGrowthRecord(babyId: String, recordId: String, request: UpdateGrowthRecordRequest): GrowthRecordResponse {
@@ -79,16 +85,19 @@ class GrowthRecordService(private val jdbc: JdbcTemplate) {
             request.note ?: current.note,
             recordId, babyId,
         )
-        return current.copy(
+        val updated = current.copy(
             weightG = request.weightG ?: current.weightG,
             heightCm = request.heightCm ?: current.heightCm,
             headCm = request.headCm ?: current.headCm,
             note = request.note ?: current.note,
         )
+        broker.publishForBaby(babyId, "GROWTH_UPDATED", null, updated)
+        return updated
     }
 
     fun deleteGrowthRecord(babyId: String, recordId: String) {
         jdbc.update("delete from bl_growth_records where id = ? and baby_id = ?", recordId, babyId)
+        broker.publishForBaby(babyId, "GROWTH_DELETED", null, mapOf("id" to recordId))
     }
 
     fun getGrowthRecords(babyId: String, limit: Int = 20): List<GrowthRecordResponse> =

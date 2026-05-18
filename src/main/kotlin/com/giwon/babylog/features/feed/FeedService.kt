@@ -1,5 +1,6 @@
 package com.giwon.babylog.features.feed
 
+import com.giwon.babylog.features.realtime.FamilyEventBroker
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
 import java.time.LocalDate
@@ -39,7 +40,10 @@ data class UpdateFeedRequest(
 )
 
 @Service
-class FeedService(private val jdbc: JdbcTemplate) {
+class FeedService(
+    private val jdbc: JdbcTemplate,
+    private val broker: FamilyEventBroker,
+) {
 
     fun recordFeed(babyId: String, request: CreateFeedRequest): FeedResponse {
         val id = UUID.randomUUID().toString()
@@ -52,8 +56,10 @@ class FeedService(private val jdbc: JdbcTemplate) {
             id, babyId, fedAt, request.amountMl, request.feedType, request.note,
             request.leftMinutes, request.rightMinutes,
         )
-        return toResponse(id, babyId, fedAt, request.amountMl, request.feedType, request.note,
+        val response = toResponse(id, babyId, fedAt, request.amountMl, request.feedType, request.note,
             request.leftMinutes, request.rightMinutes)
+        broker.publishForBaby(babyId, "FEED_CREATED", null, response)
+        return response
     }
 
     fun getFeeds(babyId: String, limit: Int = 20, date: String? = null): List<FeedResponse> {
@@ -93,15 +99,18 @@ class FeedService(private val jdbc: JdbcTemplate) {
         if (updateParts.isEmpty()) return getFeed(babyId, feedId)
 
         params += feedId; params += babyId
-        return jdbc.query(
+        val updated = jdbc.query(
             "update bl_feed_records set ${updateParts.joinToString(", ")} where id = ? and baby_id = ? returning *",
             { rs, _ -> rs.toFeedResponse() },
             *params.toTypedArray(),
         ).firstOrNull() ?: throw IllegalArgumentException("수유 기록을 찾을 수 없어.")
+        broker.publishForBaby(babyId, "FEED_UPDATED", null, updated)
+        return updated
     }
 
     fun deleteFeed(babyId: String, feedId: String) {
         jdbc.update("delete from bl_feed_records where id = ? and baby_id = ?", feedId, babyId)
+        broker.publishForBaby(babyId, "FEED_DELETED", null, mapOf("id" to feedId))
     }
 
     private fun getFeed(babyId: String, feedId: String): FeedResponse =

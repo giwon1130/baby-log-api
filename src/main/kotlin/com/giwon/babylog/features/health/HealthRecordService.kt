@@ -1,5 +1,6 @@
 package com.giwon.babylog.features.health
 
+import com.giwon.babylog.features.realtime.FamilyEventBroker
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
 import java.time.OffsetDateTime
@@ -25,7 +26,10 @@ data class CreateHealthRecordRequest(
 )
 
 @Service
-class HealthRecordService(private val jdbc: JdbcTemplate) {
+class HealthRecordService(
+    private val jdbc: JdbcTemplate,
+    private val broker: FamilyEventBroker,
+) {
 
     fun recordHealth(babyId: String, request: CreateHealthRecordRequest): HealthRecordResponse {
         val id = UUID.randomUUID().toString()
@@ -37,10 +41,12 @@ class HealthRecordService(private val jdbc: JdbcTemplate) {
                values (?, ?, ?, ?, ?, ?, ?)""",
             id, babyId, recordedAt, request.type, request.value, request.name, request.note,
         )
-        return HealthRecordResponse(
+        val response = HealthRecordResponse(
             id = id, babyId = babyId, recordedAt = recordedAt.toString(),
             type = request.type, value = request.value, name = request.name, note = request.note,
         )
+        broker.publishForBaby(babyId, "HEALTH_CREATED", null, response)
+        return response
     }
 
     fun getHealthRecords(babyId: String, limit: Int = 50): List<HealthRecordResponse> =
@@ -62,5 +68,6 @@ class HealthRecordService(private val jdbc: JdbcTemplate) {
 
     fun deleteHealthRecord(babyId: String, recordId: String) {
         jdbc.update("delete from bl_health_records where id = ? and baby_id = ?", recordId, babyId)
+        broker.publishForBaby(babyId, "HEALTH_DELETED", null, mapOf("id" to recordId))
     }
 }
