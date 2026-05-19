@@ -1,8 +1,8 @@
 package com.giwon.babylog.features.realtime
 
+import com.giwon.babylog.features.baby.BabyLookupRepository
 import com.giwon.babylog.features.push.ExpoPushSender
 import com.giwon.babylog.features.push.PushTokenService
-import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Component
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.io.IOException
@@ -11,7 +11,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 
 @Component
 class FamilyEventBroker(
-    private val jdbc: JdbcTemplate,
+    private val babyLookup: BabyLookupRepository,
     private val pushTokenService: PushTokenService,
     private val expoPushSender: ExpoPushSender,
 ) {
@@ -80,21 +80,11 @@ class FamilyEventBroker(
             "HEALTH_CREATED" -> "🩺 건강" to "기록"
             else -> return null
         }
-        val babyName = babyName(babyId) ?: "아기"
+        val babyName = babyLookup.findBabyName(babyId) ?: "아기"
         return title to "$babyName $action 했어요"
     }
 
-    private fun babyName(babyId: String): String? = runCatching {
-        jdbc.queryForObject("select name from bl_babies where id = ?", String::class.java, babyId)
-    }.getOrNull()
-
-    private fun familyIdOf(babyId: String): String? = runCatching {
-        jdbc.queryForObject(
-            "select family_id from bl_babies where id = ?",
-            String::class.java,
-            babyId,
-        )
-    }.getOrNull()
+    private fun familyIdOf(babyId: String): String? = babyLookup.findFamilyId(babyId)
 
     private fun remove(familyId: String, emitter: SseEmitter) {
         emitters[familyId]?.remove(emitter)

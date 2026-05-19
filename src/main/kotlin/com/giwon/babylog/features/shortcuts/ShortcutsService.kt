@@ -1,5 +1,6 @@
 package com.giwon.babylog.features.shortcuts
 
+import com.giwon.babylog.features.baby.BabyLookupRepository
 import com.giwon.babylog.features.diaper.CreateDiaperRequest
 import com.giwon.babylog.features.diaper.DiaperService
 import com.giwon.babylog.features.feed.CreateFeedRequest
@@ -12,7 +13,6 @@ import com.giwon.babylog.features.sleep.EndSleepRequest
 import com.giwon.babylog.features.sleep.SleepService
 import com.giwon.babylog.features.sleep.StartSleepRequest
 import com.giwon.babylog.features.stats.StatsService
-import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
 import java.time.OffsetDateTime
 import java.time.ZoneId
@@ -75,7 +75,7 @@ data class ShortcutResult(val message: String)
 
 @Service
 class ShortcutsService(
-    private val jdbc: JdbcTemplate,
+    private val babyLookup: BabyLookupRepository,
     private val feedService: FeedService,
     private val diaperService: DiaperService,
     private val sleepService: SleepService,
@@ -255,35 +255,20 @@ class ShortcutsService(
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private fun resolveBabyId(inviteCode: String, babyName: String?): String {
-        val familyId = runCatching {
-            jdbc.queryForObject(
-                "select id from bl_families where invite_code = ?",
-                String::class.java,
-                inviteCode,
-            )
-        }.getOrNull() ?: throw IllegalArgumentException("초대 코드를 찾을 수 없어요: $inviteCode")
+        val familyId = babyLookup.findFamilyIdByInviteCode(inviteCode)
+            ?: throw IllegalArgumentException("초대 코드를 찾을 수 없어요: $inviteCode")
 
-        val babies = jdbc.query(
-            "select id, name from bl_babies where family_id = ? order by birth_date",
-            { rs, _ -> Pair(rs.getString("id"), rs.getString("name")) },
-            familyId,
-        )
+        val babies = babyLookup.findBabiesByFamilyId(familyId)
         if (babies.isEmpty()) throw IllegalArgumentException("등록된 아기가 없어요")
 
         return if (babyName != null) {
-            babies.firstOrNull { it.second == babyName }?.first
+            babies.firstOrNull { it.name == babyName }?.id
                 ?: throw IllegalArgumentException("'$babyName' 이름의 아기를 찾을 수 없어요")
         } else {
-            babies.first().first
+            babies.first().id
         }
     }
 
     private fun getBabyName(babyId: String): String =
-        runCatching {
-            jdbc.queryForObject(
-                "select name from bl_babies where id = ?",
-                String::class.java,
-                babyId,
-            )
-        }.getOrNull() ?: "아기"
+        babyLookup.findBabyName(babyId) ?: "아기"
 }
