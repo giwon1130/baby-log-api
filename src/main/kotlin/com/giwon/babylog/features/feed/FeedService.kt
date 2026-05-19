@@ -58,7 +58,7 @@ class FeedService(
         )
         val response = toResponse(id, babyId, fedAt, request.amountMl, request.feedType, request.note,
             request.leftMinutes, request.rightMinutes)
-        broker.publishForBaby(babyId, "FEED_CREATED", null, response)
+        broker.publishForBaby(babyId, "FEED_CREATED", response)
         return response
     }
 
@@ -104,13 +104,13 @@ class FeedService(
             { rs, _ -> rs.toFeedResponse() },
             *params.toTypedArray(),
         ).firstOrNull() ?: throw IllegalArgumentException("수유 기록을 찾을 수 없어.")
-        broker.publishForBaby(babyId, "FEED_UPDATED", null, updated)
+        broker.publishForBaby(babyId, "FEED_UPDATED", updated)
         return updated
     }
 
     fun deleteFeed(babyId: String, feedId: String) {
         jdbc.update("delete from bl_feed_records where id = ? and baby_id = ?", feedId, babyId)
-        broker.publishForBaby(babyId, "FEED_DELETED", null, mapOf("id" to feedId))
+        broker.publishForBaby(babyId, "FEED_DELETED", mapOf("id" to feedId))
     }
 
     private fun getFeed(babyId: String, feedId: String): FeedResponse =

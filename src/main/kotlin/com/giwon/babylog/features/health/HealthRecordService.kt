@@ -45,7 +45,7 @@ class HealthRecordService(
             id = id, babyId = babyId, recordedAt = recordedAt.toString(),
             type = request.type, value = request.value, name = request.name, note = request.note,
         )
-        broker.publishForBaby(babyId, "HEALTH_CREATED", null, response)
+        broker.publishForBaby(babyId, "HEALTH_CREATED", response)
         return response
     }
 
@@ -68,6 +68,6 @@ class HealthRecordService(
 
     fun deleteHealthRecord(babyId: String, recordId: String) {
         jdbc.update("delete from bl_health_records where id = ? and baby_id = ?", recordId, babyId)
-        broker.publishForBaby(babyId, "HEALTH_DELETED", null, mapOf("id" to recordId))
+        broker.publishForBaby(babyId, "HEALTH_DELETED", mapOf("id" to recordId))
     }
 }

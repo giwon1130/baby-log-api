@@ -56,7 +56,7 @@ class SleepService(
             durationMinutes = null,
             note = request.note,
         )
-        broker.publishForBaby(babyId, "SLEEP_STARTED", null, response)
+        broker.publishForBaby(babyId, "SLEEP_STARTED", response)
         return response
     }
 
@@ -69,7 +69,7 @@ class SleepService(
             { rs, _ -> rs.toSleepResponse() },
             wokeAt, sleepId, babyId,
         ).firstOrNull() ?: throw IllegalArgumentException("수면 기록을 찾을 수 없어.")
-        broker.publishForBaby(babyId, "SLEEP_ENDED", null, updated)
+        broker.publishForBaby(babyId, "SLEEP_ENDED", updated)
         return updated
     }
 
@@ -108,7 +108,7 @@ class SleepService(
             { rs, _ -> rs.toSleepResponse() },
             newSleptAt, newWokeAt, newNote, sleepId, babyId,
         ).firstOrNull() ?: throw IllegalArgumentException("수면 기록을 찾을 수 없어.")
-        broker.publishForBaby(babyId, "SLEEP_UPDATED", null, updated)
+        broker.publishForBaby(babyId, "SLEEP_UPDATED", updated)
         return updated
     }
 
@@ -117,7 +117,7 @@ class SleepService(
 
     fun deleteSleep(babyId: String, sleepId: String) {
         jdbc.update("delete from bl_sleep_records where id = ? and baby_id = ?", sleepId, babyId)
-        broker.publishForBaby(babyId, "SLEEP_DELETED", null, mapOf("id" to sleepId))
+        broker.publishForBaby(babyId, "SLEEP_DELETED", mapOf("id" to sleepId))
     }
 
     private fun getSleep(babyId: String, sleepId: String): SleepResponse =

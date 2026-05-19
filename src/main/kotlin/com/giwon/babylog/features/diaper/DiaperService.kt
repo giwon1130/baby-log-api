@@ -48,7 +48,7 @@ class DiaperService(
             id = id, babyId = babyId, changedAt = changedAt.toString(),
             diaperType = request.diaperType, note = request.note,
         )
-        broker.publishForBaby(babyId, "DIAPER_CREATED", null, response)
+        broker.publishForBaby(babyId, "DIAPER_CREATED", response)
         return response
     }
 
@@ -115,12 +115,12 @@ class DiaperService(
             newChangedAt, newType, newNote, diaperId, babyId,
         )
         val updated = current.copy(changedAt = newChangedAt.toString(), diaperType = newType, note = newNote)
-        broker.publishForBaby(babyId, "DIAPER_UPDATED", null, updated)
+        broker.publishForBaby(babyId, "DIAPER_UPDATED", updated)
         return updated
     }
 
     fun deleteDiaper(babyId: String, diaperId: String) {
         jdbc.update("delete from bl_diaper_records where id = ? and baby_id = ?", diaperId, babyId)
-        broker.publishForBaby(babyId, "DIAPER_DELETED", null, mapOf("id" to diaperId))
+        broker.publishForBaby(babyId, "DIAPER_DELETED", mapOf("id" to diaperId))
     }
 }

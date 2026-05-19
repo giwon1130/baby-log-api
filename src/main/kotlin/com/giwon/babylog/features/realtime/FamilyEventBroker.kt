@@ -49,8 +49,8 @@ class FamilyEventBroker(
     fun publishForBaby(
         babyId: String,
         type: String,
-        actorDeviceId: String?,
         payload: Any?,
+        actorDeviceId: String? = null,
     ) {
         val familyId = familyIdOf(babyId) ?: return
         val resolvedDeviceId = actorDeviceId ?: DeviceIdHolder.get()

@@ -58,7 +58,7 @@ class GrowthRecordService(
             headCm = request.headCm,
             note = request.note,
         )
-        broker.publishForBaby(babyId, "GROWTH_CREATED", null, response)
+        broker.publishForBaby(babyId, "GROWTH_CREATED", response)
         return response
     }
 
@@ -91,13 +91,13 @@ class GrowthRecordService(
             headCm = request.headCm ?: current.headCm,
             note = request.note ?: current.note,
         )
-        broker.publishForBaby(babyId, "GROWTH_UPDATED", null, updated)
+        broker.publishForBaby(babyId, "GROWTH_UPDATED", updated)
         return updated
     }
 
     fun deleteGrowthRecord(babyId: String, recordId: String) {
         jdbc.update("delete from bl_growth_records where id = ? and baby_id = ?", recordId, babyId)
-        broker.publishForBaby(babyId, "GROWTH_DELETED", null, mapOf("id" to recordId))
+        broker.publishForBaby(babyId, "GROWTH_DELETED", mapOf("id" to recordId))
     }
 
     fun getGrowthRecords(babyId: String, limit: Int = 20): List<GrowthRecordResponse> =
