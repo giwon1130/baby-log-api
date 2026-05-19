@@ -14,3 +14,9 @@ baby-log:
     username: ${PGUSER:${BABY_LOG_DB_USERNAME:babylog}}
     password: ${PGPASSWORD:${BABY_LOG_DB_PASSWORD:babylog}}
     driver-class-name: org.postgresql.Driver
+  integrations:
+    gemini:
+      # Set GEMINI_API_KEY env var to enable AI-generated daily summary; empty = fallback to template
+      api-key: ${GEMINI_API_KEY:}
+      base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
+      model: ${GEMINI_MODEL:gemini-2.0-flash-exp}

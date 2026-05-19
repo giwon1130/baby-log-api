@@ -25,6 +25,7 @@ class DailySummaryService(
     private val statsService: StatsService,
     private val pushTokenService: PushTokenService,
     private val expoPushSender: ExpoPushSender,
+    private val geminiClient: GeminiClient,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -66,7 +67,11 @@ class DailySummaryService(
             return false
         }
 
-        val (title, body) = buildMessage(babyName, stats)
+        val title = "📋 ${babyName} 오늘 요약"
+        // Gemini 활성 시 자연어 요약, 실패/미설정 시 template fallback
+        val body = geminiClient.summarizeDaily(babyName, stats)
+            ?: templateMessage(stats)
+
         expoPushSender.send(
             tokens,
             title,
@@ -79,7 +84,7 @@ class DailySummaryService(
     private fun isEmpty(s: TodayStatsResponse) =
         s.feedCount == 0 && s.diaperCount == 0 && s.sleepCount == 0
 
-    private fun buildMessage(babyName: String, s: TodayStatsResponse): Pair<String, String> {
+    private fun templateMessage(s: TodayStatsResponse): String {
         val sleepH = s.totalSleepMinutes / 60
         val sleepM = s.totalSleepMinutes % 60
         val sleepStr = if (sleepH > 0) "${sleepH}시간 ${sleepM}분" else "${sleepM}분"
@@ -88,9 +93,6 @@ class DailySummaryService(
         if (s.feedCount > 0) parts += "🍼 수유 ${s.feedCount}회 · ${s.totalFeedMl}ml"
         if (s.diaperCount > 0) parts += "🧷 기저귀 ${s.diaperCount}회"
         if (s.sleepCount > 0) parts += "😴 수면 $sleepStr"
-
-        val title = "📋 ${babyName} 오늘 요약"
-        val body = parts.joinToString(" · ")
-        return title to body
+        return parts.joinToString(" · ")
     }
 }
