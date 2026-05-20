@@ -53,9 +53,9 @@ class DailySummaryService(
         )
         if (babies.isEmpty()) return false
 
-        val tokens = pushTokenService.tokensForFamilyExcept(familyId, null)
+        val tokens = pushTokenService.tokensForDailySummary(familyId)
         if (tokens.isEmpty()) {
-            log.info("daily summary skipped — no push tokens. familyId={}", familyId)
+            log.info("daily summary skipped — no opted-in push tokens. familyId={}", familyId)
             return false
         }
 

@@ -185,6 +185,10 @@ class SchemaInitializer(private val jdbcTemplate: JdbcTemplate) {
             )
         """.trimIndent())
         jdbcTemplate.execute("create index if not exists idx_push_tokens_family on bl_push_tokens(family_id)")
+        // 일일 요약 수신 토글 (디바이스 단위). 기존 행은 ON 으로 — ALTER + default true.
+        jdbcTemplate.execute(
+            "alter table bl_push_tokens add column if not exists daily_summary_enabled boolean not null default true"
+        )
 
         // Phase 2A — richer acoustic features (pitch, ZCR, rhythmicity).
         // Added as ALTER so existing rows stay untouched.

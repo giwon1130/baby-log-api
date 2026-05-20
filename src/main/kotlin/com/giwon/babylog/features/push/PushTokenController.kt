@@ -2,6 +2,7 @@ package com.giwon.babylog.features.push
 
 import com.giwon.babylog.common.ApiResponse
 import org.springframework.web.bind.annotation.DeleteMapping
+import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -24,6 +25,17 @@ class PushTokenController(private val service: PushTokenService) {
         @PathVariable deviceId: String,
     ): ApiResponse<Unit> {
         service.delete(familyId, deviceId)
+        return ApiResponse.ok(Unit)
+    }
+
+    /** 일일 요약 수신 토글. */
+    @PatchMapping("/{deviceId}/daily-summary")
+    fun setDailySummary(
+        @PathVariable familyId: String,
+        @PathVariable deviceId: String,
+        @RequestBody request: DailySummaryToggleRequest,
+    ): ApiResponse<Unit> {
+        service.setDailySummaryEnabled(familyId, deviceId, request.enabled)
         return ApiResponse.ok(Unit)
     }
 }
