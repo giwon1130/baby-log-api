@@ -77,12 +77,14 @@ class BabyService(private val jdbc: JdbcTemplate) {
         // 소유권 확인 (예외 발생시 throws)
         getBaby(familyId, babyId)
 
-        // FK 제약이 CASCADE가 아니므로 자식 레코드 먼저 삭제
+        // FK 제약이 CASCADE가 아니므로 자식 레코드 먼저 삭제.
+        // bl_babies 를 FK 로 참조하는 6개 테이블 전부 — 하나라도 빠지면 23503 위반.
         jdbc.update("delete from bl_feed_records where baby_id = ?", babyId)
         jdbc.update("delete from bl_diaper_records where baby_id = ?", babyId)
         jdbc.update("delete from bl_sleep_records where baby_id = ?", babyId)
         jdbc.update("delete from bl_growth_records where baby_id = ?", babyId)
         jdbc.update("delete from bl_health_records where baby_id = ?", babyId)
+        jdbc.update("delete from bl_cry_samples where baby_id = ?", babyId)
 
         val deleted = jdbc.update("delete from bl_babies where id = ? and family_id = ?", babyId, familyId)
         if (deleted == 0) throw IllegalArgumentException("아기를 찾을 수 없어.")
