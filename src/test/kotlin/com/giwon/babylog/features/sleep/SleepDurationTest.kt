@@ -9,7 +9,7 @@ import java.time.ZoneOffset
 
 class SleepDurationTest {
 
-    private val service = SleepService(mock())
+    private val service = SleepService(mock(), mock())
 
     private fun time(hour: Int, minute: Int = 0): OffsetDateTime =
         OffsetDateTime.of(2025, 4, 14, hour, minute, 0, 0, ZoneOffset.UTC)

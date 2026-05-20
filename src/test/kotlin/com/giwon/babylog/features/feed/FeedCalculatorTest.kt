@@ -6,8 +6,8 @@ import org.mockito.Mockito.mock
 
 class FeedCalculatorTest {
 
-    // JdbcTemplate은 사용하지 않지만 생성자에 필요 — mock으로 주입
-    private val service = FeedService(mock())
+    // JdbcTemplate/broker 는 사용하지 않지만 생성자에 필요 — mock으로 주입
+    private val service = FeedService(mock(), mock())
 
     // ── 분유(FORMULA) 수유량별 간격 ─────────────────────────────────
 
