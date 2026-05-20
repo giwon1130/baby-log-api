@@ -81,10 +81,10 @@ class DailySummaryService(
         return true
     }
 
-    private fun isEmpty(s: TodayStatsResponse) =
+    internal fun isEmpty(s: TodayStatsResponse) =
         s.feedCount == 0 && s.diaperCount == 0 && s.sleepCount == 0
 
-    private fun templateMessage(s: TodayStatsResponse): String {
+    internal fun templateMessage(s: TodayStatsResponse): String {
         val sleepH = s.totalSleepMinutes / 60
         val sleepM = s.totalSleepMinutes % 60
         val sleepStr = if (sleepH > 0) "${sleepH}시간 ${sleepM}분" else "${sleepM}분"
