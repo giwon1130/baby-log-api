@@ -4,6 +4,7 @@ import com.giwon.babylog.features.realtime.FamilyEventBroker
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
 import java.time.Duration
+import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
@@ -73,13 +74,18 @@ class SleepService(
         return updated
     }
 
-    fun getSleepRecords(babyId: String, limit: Int = 20): List<SleepResponse> =
-        jdbc.query(
+    fun getSleepRecords(babyId: String, limit: Int = 20, date: String? = null): List<SleepResponse> {
+        val (sql, params) = if (date != null) {
+            val start = LocalDate.parse(date).atStartOfDay().atOffset(ZoneOffset.UTC)
+            val end = LocalDate.parse(date).plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC)
+            """select * from bl_sleep_records where baby_id = ? and slept_at >= ? and slept_at < ?
+               order by slept_at desc limit ?""" to arrayOf<Any>(babyId, start, end, limit)
+        } else {
             """select * from bl_sleep_records where baby_id = ?
-               order by slept_at desc limit ?""",
-            { rs, _ -> rs.toSleepResponse() },
-            babyId, limit,
-        )
+               order by slept_at desc limit ?""" to arrayOf<Any>(babyId, limit)
+        }
+        return jdbc.query(sql, { rs, _ -> rs.toSleepResponse() }, *params)
+    }
 
     fun getActiveSleep(babyId: String): SleepResponse? =
         runCatching {

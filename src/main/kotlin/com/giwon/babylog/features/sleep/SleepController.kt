@@ -24,8 +24,9 @@ class SleepController(private val sleepService: SleepService) {
     fun getSleepRecords(
         @PathVariable babyId: String,
         @RequestParam(defaultValue = "20") limit: Int,
+        @RequestParam(required = false) date: String?,
     ): ApiResponse<List<SleepResponse>> =
-        ApiResponse.ok(sleepService.getSleepRecords(babyId, limit))
+        ApiResponse.ok(sleepService.getSleepRecords(babyId, limit, date))
 
     @GetMapping("/active")
     fun getActiveSleep(@PathVariable babyId: String): ApiResponse<SleepResponse?> =
