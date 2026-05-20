@@ -14,4 +14,8 @@ class StatsController(private val statsService: StatsService) {
     @GetMapping("/weekly")
     fun getWeeklyStats(@PathVariable babyId: String): ApiResponse<WeeklyStatsResponse> =
         ApiResponse.ok(statsService.getWeeklyStats(babyId))
+
+    @GetMapping("/monthly")
+    fun getMonthlyStats(@PathVariable babyId: String): ApiResponse<WeeklyStatsResponse> =
+        ApiResponse.ok(statsService.getMonthlyStats(babyId))
 }

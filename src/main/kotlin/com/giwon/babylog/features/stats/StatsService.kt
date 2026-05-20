@@ -8,6 +8,7 @@ import java.time.ZoneOffset
 data class DailyFeedStat(val date: String, val feedCount: Int, val totalMl: Int)
 data class DailySleepStat(val date: String, val sleepCount: Int, val totalMinutes: Long)
 
+// 주간/월간 공용 — feedStats/sleepStats 가 일별로 dayCount 만큼.
 data class WeeklyStatsResponse(
     val feedStats: List<DailyFeedStat>,
     val sleepStats: List<DailySleepStat>,
@@ -29,12 +30,17 @@ data class TodayStatsResponse(
 @Service
 class StatsService(private val jdbc: JdbcTemplate) {
 
-    fun getWeeklyStats(babyId: String): WeeklyStatsResponse {
+    fun getWeeklyStats(babyId: String): WeeklyStatsResponse = rangeStats(babyId, 7)
+
+    fun getMonthlyStats(babyId: String): WeeklyStatsResponse = rangeStats(babyId, 30)
+
+    /** 오늘 포함 최근 dayCount 일의 일별 수유·수면 집계. */
+    private fun rangeStats(babyId: String, dayCount: Int): WeeklyStatsResponse {
         val today = LocalDate.now(ZoneOffset.UTC)
-        val weekStart = today.minusDays(6)
-        val start = weekStart.atStartOfDay().atOffset(ZoneOffset.UTC)
+        val rangeStart = today.minusDays((dayCount - 1).toLong())
+        val start = rangeStart.atStartOfDay().atOffset(ZoneOffset.UTC)
         val end = today.plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC)
-        val days = (6 downTo 0).map { today.minusDays(it.toLong()) }
+        val days = ((dayCount - 1) downTo 0).map { today.minusDays(it.toLong()) }
 
         // Single GROUP BY query instead of 7 individual queries
         val feedByDay = jdbc.query(
