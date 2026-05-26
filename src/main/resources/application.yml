@@ -1,10 +1,16 @@
 server:
   # Railway injects PORT; fall back to SERVER_PORT then 8092
   port: ${PORT:${SERVER_PORT:8092}}
+  # Railway reverse-proxy 의 X-Forwarded-* 헤더 신뢰 (URL 생성 시 운영 host 사용)
+  forward-headers-strategy: framework
 
 spring:
   application:
     name: baby-log-api
+  servlet:
+    multipart:
+      max-file-size: 15MB
+      max-request-size: 20MB
 
 baby-log:
   db:
@@ -20,3 +26,9 @@ baby-log:
       api-key: ${GEMINI_API_KEY:}
       base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
       model: ${GEMINI_MODEL:gemini-2.0-flash-exp}
+  upload:
+    # Railway 영구 볼륨 마운트 경로(/app/data) 아래 uploads 디렉터리 사용
+    # 대시보드에서 baby-log-api 서비스에 volume 을 /app/data 로 1회 마운트
+    dir: ${BABY_LOG_UPLOAD_DIR:/app/data/uploads}
+    # 업로드 파일에 접근할 외부 base URL. 비우면 요청에서 추론 (운영 권장: env 로 명시).
+    public-base-url: ${BABY_LOG_PUBLIC_BASE_URL:}

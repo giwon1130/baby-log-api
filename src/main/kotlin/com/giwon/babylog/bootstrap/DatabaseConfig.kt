@@ -208,6 +208,7 @@ class SchemaInitializer(private val jdbcTemplate: JdbcTemplate) {
         }
 
         // 월 증명사진 슬롯 — 1~12개월. baby × month_index UNIQUE 라 재촬영은 덮어쓰기.
+        // 저장소: Railway 영구 볼륨 (storage_key = 볼륨 내 상대 경로). photo_url 은 외부 접근 URL.
         jdbcTemplate.execute("""
             create table if not exists bl_monthly_photos (
                 id varchar(36) primary key,
@@ -215,7 +216,7 @@ class SchemaInitializer(private val jdbcTemplate: JdbcTemplate) {
                 month_index smallint not null check (month_index between 1 and 12),
                 photo_url text not null,
                 thumbnail_url text,
-                cloudinary_public_id text,
+                storage_key text,
                 taken_at timestamptz not null,
                 caption varchar(200),
                 location_hint varchar(100),
@@ -226,6 +227,27 @@ class SchemaInitializer(private val jdbcTemplate: JdbcTemplate) {
         """.trimIndent())
         jdbcTemplate.execute(
             "create index if not exists idx_monthly_photos_baby on bl_monthly_photos(baby_id)"
+        )
+        // 마이그레이션 — 직전 배포에서 cloudinary_public_id 로 만들었던 컬럼을 storage_key 로 정리
+        jdbcTemplate.execute(
+            """
+            do ${'$'}${'$'}
+            begin
+              if exists (
+                select 1 from information_schema.columns
+                where table_name = 'bl_monthly_photos' and column_name = 'cloudinary_public_id'
+              ) then
+                if not exists (
+                  select 1 from information_schema.columns
+                  where table_name = 'bl_monthly_photos' and column_name = 'storage_key'
+                ) then
+                  alter table bl_monthly_photos rename column cloudinary_public_id to storage_key;
+                else
+                  alter table bl_monthly_photos drop column cloudinary_public_id;
+                end if;
+              end if;
+            end ${'$'}${'$'};
+            """.trimIndent()
         )
 
         // 월차 알림 발송 기록 — (baby, month) 당 1회만 푸시하도록 idempotency.
