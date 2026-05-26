@@ -25,9 +25,11 @@ API: http://localhost:8092
 
 | 도메인 | 메서드 | 경로 |
 |--------|--------|------|
+| Health | GET | `/health` |
 | Family | POST | `/api/v1/families` |
 | Family | GET | `/api/v1/families/join/{inviteCode}` |
 | Family | GET | `/api/v1/families/{familyId}` |
+| Family Stream (SSE) | GET | `/api/v1/families/{familyId}/stream` |
 | Baby | POST/GET | `/api/v1/families/{familyId}/babies` |
 | Baby | PUT/DELETE | `/api/v1/families/{familyId}/babies/{id}` |
 | Feed | POST/GET | `/api/v1/babies/{babyId}/feeds` |
@@ -43,6 +45,9 @@ API: http://localhost:8092
 | Growth Stage | GET | `/api/v1/babies/{babyId}/growth-stage?familyId=` |
 | Stats | GET | `/api/v1/babies/{babyId}/stats/today` |
 | Stats | GET | `/api/v1/babies/{babyId}/stats/weekly` |
+| Stats | GET | `/api/v1/babies/{babyId}/stats/monthly` |
+| Daily Summary | POST | `/api/v1/summary/run-all` (21:00 KST cron + 수동) |
+| Push Token | POST/DELETE | `/api/v1/push-tokens` |
 | Cry | POST | `/api/v1/babies/{babyId}/cry-samples` |
 | Cry | GET | `/api/v1/babies/{babyId}/cry-samples` |
 | Cry | PATCH | `/api/v1/cry-samples/{id}/confirm` |
@@ -68,6 +73,8 @@ API: http://localhost:8092
 | `BABY_LOG_DB_USERNAME` | DB 유저명 | `babylog` |
 | `BABY_LOG_DB_PASSWORD` | DB 비밀번호 | `babylog` |
 | `SERVER_PORT` | 서버 포트 | `8092` |
+| `GEMINI_API_KEY` | Gemini API 키 (일일 요약 자연어 본문 생성, 미설정 시 template fallback). signal-desk와 키 공유 가능 | — |
+| `GEMINI_MODEL` | Gemini 모델 | `gemini-2.5-flash` |
 
 ## 배포 (Railway)
 
@@ -100,9 +107,13 @@ railway logs
 
 - [x] 수유/기저귀/수면/성장/통계 기본 기능
 - [x] 가족 공유 (초대 코드)
+- [x] 가족 실시간 동기화 Phase 1+2 — `FamilyEventBroker` SSE + `ExpoPushSender` (CREATED만 푸시, `X-Device-Id`로 자기 디바이스 제외)
 - [x] 울음 분석 Phase 1 (휴리스틱 + 학습 스텁)
 - [x] 울음 분석 Phase 2A (피치/리듬/ZCR feature 추가)
+- [x] 일일 요약 푸시 — 매일 21:00 KST cron, Gemini 자연어 본문 + template fallback (`features/summary/`)
+- [x] 월간 통계 + 수면 기록 날짜 필터
 - [ ] 울음 분석 Phase 2B (YAMNet 임베딩 + Donate-a-Cry 코퍼스 k-NN)
-- [ ] 데이터 Export/백업
+- [ ] 데이터 Export/백업 (PDF/CSV — 산부인과 방문용)
+- [ ] 패턴 인사이트 강화 (수면/수유 이상 감지)
 
 더 자세한 에이전트용 가이드는 [AGENTS.md](./AGENTS.md) 참고.
