@@ -206,5 +206,36 @@ class SchemaInitializer(private val jdbcTemplate: JdbcTemplate) {
                     .also { _ -> println("[schema] ensure column bl_cry_samples.$colName") }
             )
         }
+
+        // 월 증명사진 슬롯 — 1~12개월. baby × month_index UNIQUE 라 재촬영은 덮어쓰기.
+        jdbcTemplate.execute("""
+            create table if not exists bl_monthly_photos (
+                id varchar(36) primary key,
+                baby_id varchar(36) not null references bl_babies(id),
+                month_index smallint not null check (month_index between 1 and 12),
+                photo_url text not null,
+                thumbnail_url text,
+                cloudinary_public_id text,
+                taken_at timestamptz not null,
+                caption varchar(200),
+                location_hint varchar(100),
+                created_at timestamptz not null default now(),
+                updated_at timestamptz not null default now(),
+                unique (baby_id, month_index)
+            )
+        """.trimIndent())
+        jdbcTemplate.execute(
+            "create index if not exists idx_monthly_photos_baby on bl_monthly_photos(baby_id)"
+        )
+
+        // 월차 알림 발송 기록 — (baby, month) 당 1회만 푸시하도록 idempotency.
+        jdbcTemplate.execute("""
+            create table if not exists bl_monthly_photo_reminders (
+                baby_id varchar(36) not null references bl_babies(id),
+                month_index smallint not null check (month_index between 1 and 12),
+                sent_at timestamptz not null default now(),
+                primary key (baby_id, month_index)
+            )
+        """.trimIndent())
     }
 }
