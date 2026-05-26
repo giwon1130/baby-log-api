@@ -31,8 +31,12 @@ class DailySummaryService(
 
     /** 운영용/스케줄러 진입점. 처리된 가족 수 반환. */
     fun runForAllFamilies(): Int {
+        // 빈 가족(아기 0명)은 어차피 skip 이므로 SQL 단계에서 제외 — cron 노이즈 ↓
         val families = jdbc.queryForList(
-            "select id from bl_families",
+            """
+            select id from bl_families
+            where exists (select 1 from bl_babies b where b.family_id = bl_families.id)
+            """.trimIndent(),
             String::class.java,
         )
         var sent = 0
