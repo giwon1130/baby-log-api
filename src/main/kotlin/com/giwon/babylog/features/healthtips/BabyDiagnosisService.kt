@@ -20,6 +20,8 @@ data class BabyDiagnosisResponse(
     val notes: String,
     val status: String,           // 'active' | 'resolved'
     val resolvedAt: String?,
+    val todayDone: Int,           // 오늘 완료한 task 수
+    val todayTotal: Int,          // 카탈로그 정의 task 수
 )
 
 data class CreateDiagnosisRequest(
@@ -51,14 +53,28 @@ class BabyDiagnosisService(private val jdbc: JdbcTemplate) {
 
     private val kst = ZoneId.of("Asia/Seoul")
 
-    /** 아기의 활성/완료 진단 리스트 */
+    /** 아기의 활성/완료 진단 리스트 — 오늘 체크 완료 카운트 함께 prefetch */
     fun list(babyId: String, includeResolved: Boolean = false): List<BabyDiagnosisResponse> {
-        val sql = if (includeResolved) {
-            "select * from bl_baby_diagnoses where baby_id = ? order by status, started_at desc"
+        val baseSql = if (includeResolved) {
+            """
+            select d.*,
+                   coalesce((select count(*) from bl_diagnosis_task_done t
+                             where t.diagnosis_id = d.id and t.done_date = current_date), 0) as today_done
+              from bl_baby_diagnoses d
+             where d.baby_id = ?
+             order by d.status, d.started_at desc
+            """.trimIndent()
         } else {
-            "select * from bl_baby_diagnoses where baby_id = ? and status = 'active' order by started_at desc"
+            """
+            select d.*,
+                   coalesce((select count(*) from bl_diagnosis_task_done t
+                             where t.diagnosis_id = d.id and t.done_date = current_date), 0) as today_done
+              from bl_baby_diagnoses d
+             where d.baby_id = ? and d.status = 'active'
+             order by d.started_at desc
+            """.trimIndent()
         }
-        return jdbc.query(sql, { rs, _ -> rs.toResponse() }, babyId)
+        return jdbc.query(baseSql, { rs, _ -> rs.toResponseWithProgress() }, babyId)
     }
 
     @Transactional
@@ -158,9 +174,10 @@ class BabyDiagnosisService(private val jdbc: JdbcTemplate) {
             id,
         ).firstOrNull()
 
-    private fun ResultSet.toResponse(): BabyDiagnosisResponse {
+    private fun ResultSet.toResponse(todayDone: Int = 0): BabyDiagnosisResponse {
         val tipId = getString("tip_id")
         val tip = HealthTipsCatalog.byId(tipId)
+        val tasks = DiagnosisTaskCatalog.forTip(tipId)
         return BabyDiagnosisResponse(
             id = getString("id"),
             babyId = getString("baby_id"),
@@ -172,6 +189,12 @@ class BabyDiagnosisService(private val jdbc: JdbcTemplate) {
             notes = getString("notes"),
             status = getString("status"),
             resolvedAt = getObject("resolved_at", OffsetDateTime::class.java)?.toString(),
+            todayDone = todayDone,
+            todayTotal = tasks.size,
         )
     }
+
+    /** list 쿼리는 SELECT 에 today_done 을 포함하므로 그 값을 그대로 사용 */
+    private fun ResultSet.toResponseWithProgress(): BabyDiagnosisResponse =
+        toResponse(todayDone = getInt("today_done"))
 }
