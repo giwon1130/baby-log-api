@@ -1,5 +1,6 @@
 package com.giwon.babylog.features.monthlyphoto
 
+import com.giwon.babylog.features.realtime.FamilyEventBroker
 import com.giwon.babylog.features.upload.UploadStorageService
 import org.slf4j.LoggerFactory
 import org.springframework.jdbc.core.JdbcTemplate
@@ -13,6 +14,7 @@ import java.util.UUID
 class MonthlyPhotoService(
     private val jdbc: JdbcTemplate,
     private val storage: UploadStorageService,
+    private val broker: FamilyEventBroker,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -91,7 +93,10 @@ class MonthlyPhotoService(
             babyId, input.monthIndex,
         )
 
-        return list(babyId).first { it.monthIndex == input.monthIndex }
+        val saved = list(babyId).first { it.monthIndex == input.monthIndex }
+        // 가족 다른 디바이스에 실시간 알림 (SSE) — 슬롯 채워졌으니 그리드 새로고침 유도
+        broker.publishForBaby(babyId, "MONTHLY_PHOTO_UPSERTED", saved)
+        return saved
     }
 
     /** 슬롯 삭제 — DB row + 볼륨 파일 모두. */
@@ -120,6 +125,8 @@ class MonthlyPhotoService(
             runCatching { storage.delete(storageKey) }
                 .onFailure { log.warn("storage delete failed key={}", storageKey, it) }
         }
+
+        broker.publishForBaby(babyId, "MONTHLY_PHOTO_DELETED", mapOf("monthIndex" to monthIndex))
     }
 
     private fun ResultSet.toResponse() = MonthlyPhotoResponse(
