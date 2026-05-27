@@ -112,7 +112,7 @@ railway logs
 - [x] 울음 분석 Phase 2A (피치/리듬/ZCR feature 추가)
 - [x] 일일 요약 푸시 — 매일 21:00 KST cron, Gemini 자연어 본문 + template fallback (`features/summary/`)
 - [x] 월간 통계 + 수면 기록 날짜 필터
-- [ ] 울음 분석 Phase 2B (YAMNet 임베딩 + Donate-a-Cry 코퍼스 k-NN)
+- [~] 울음 분석 Phase 2B **보류** — 2026-05-27 Donate-a-Cry 코퍼스 + 9-feature classical ML (LR/RF/HistGBM) 사전 검증 결과 baseline(다수클래스 hungry 84%) 대비 의미 있는 개선 없음. macro-F1 0.18~0.20 수준. 다음 시도 시 MFCC/spectral feature 확장 또는 YAMNet 임베딩 필요 (사용자 정정 기반 per-baby 개인화가 더 ROI 큼). 자세한 건 work-history `2026-05-27_baby-log_cry-phase2b-exploration.md`
 - [ ] 데이터 Export/백업 (PDF/CSV — 산부인과 방문용)
 - [ ] 패턴 인사이트 강화 (수면/수유 이상 감지)
 
