@@ -267,5 +267,38 @@ class SchemaInitializer(private val jdbcTemplate: JdbcTemplate) {
                 notified_at timestamptz not null default now()
             )
         """.trimIndent())
+
+        // 우리 아기에게 진단된 건강 이슈 — HealthTipsCatalog 의 tip_id 를 참조하는 약한 외래키
+        jdbcTemplate.execute("""
+            create table if not exists bl_baby_diagnoses (
+                id varchar(36) primary key,
+                baby_id varchar(36) not null references bl_babies(id),
+                tip_id varchar(50) not null,
+                side varchar(20),                          -- 'left' | 'right' | 'both' | null
+                started_at date not null,
+                notes text not null default '',
+                status varchar(20) not null default 'active',  -- 'active' | 'resolved'
+                created_at timestamptz not null default now(),
+                updated_at timestamptz not null default now(),
+                resolved_at timestamptz
+            )
+        """.trimIndent())
+        jdbcTemplate.execute(
+            "create index if not exists idx_diagnoses_baby_status on bl_baby_diagnoses(baby_id, status)"
+        )
+
+        // 진단별 일일 체크 task 완료 기록 — (진단, task, 날짜) UNIQUE
+        jdbcTemplate.execute("""
+            create table if not exists bl_diagnosis_task_done (
+                diagnosis_id varchar(36) not null references bl_baby_diagnoses(id),
+                task_key varchar(100) not null,
+                done_date date not null,
+                done_at timestamptz not null default now(),
+                primary key (diagnosis_id, task_key, done_date)
+            )
+        """.trimIndent())
+        jdbcTemplate.execute(
+            "create index if not exists idx_diagnosis_task_done_date on bl_diagnosis_task_done(diagnosis_id, done_date desc)"
+        )
     }
 }
