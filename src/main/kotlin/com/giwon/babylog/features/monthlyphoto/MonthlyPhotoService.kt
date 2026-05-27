@@ -1,5 +1,7 @@
 package com.giwon.babylog.features.monthlyphoto
 
+import com.giwon.babylog.features.push.ExpoPushSender
+import com.giwon.babylog.features.push.PushTokenService
 import com.giwon.babylog.features.realtime.FamilyEventBroker
 import com.giwon.babylog.features.upload.UploadStorageService
 import org.slf4j.LoggerFactory
@@ -15,6 +17,8 @@ class MonthlyPhotoService(
     private val jdbc: JdbcTemplate,
     private val storage: UploadStorageService,
     private val broker: FamilyEventBroker,
+    private val pushTokenService: PushTokenService,
+    private val expoPushSender: ExpoPushSender,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -93,10 +97,48 @@ class MonthlyPhotoService(
             babyId, input.monthIndex,
         )
 
-        val saved = list(babyId).first { it.monthIndex == input.monthIndex }
+        val all = list(babyId)
+        val saved = all.first { it.monthIndex == input.monthIndex }
         // 가족 다른 디바이스에 실시간 알림 (SSE) — 슬롯 채워졌으니 그리드 새로고침 유도
         broker.publishForBaby(babyId, "MONTHLY_PHOTO_UPSERTED", saved)
+
+        // 12장 모두 채워졌으면 "첫 돌 패키지 완성" 마일스톤 1회 트리거 (idempotency)
+        if (all.size == 12 && all.map { it.monthIndex }.toSet() == (1..12).toSet()) {
+            triggerFirstYearMilestone(babyId)
+        }
         return saved
+    }
+
+    /** 12장 다 채워진 순간 1회만 푸시 + SSE 이벤트. idempotency 는 unique row. */
+    private fun triggerFirstYearMilestone(babyId: String) {
+        val inserted = jdbc.update(
+            """
+            insert into bl_first_year_notified (baby_id, notified_at)
+            values (?, now())
+            on conflict (baby_id) do nothing
+            """.trimIndent(),
+            babyId,
+        )
+        if (inserted == 0) return  // 이미 발송 — skip
+
+        val info = jdbc.query(
+            "select family_id, name from bl_babies where id = ?",
+            { rs, _ -> rs.getString("family_id") to rs.getString("name") },
+            babyId,
+        ).firstOrNull() ?: return
+
+        val (familyId, babyName) = info
+        val tokens = pushTokenService.tokensForDailySummary(familyId)
+        if (tokens.isNotEmpty()) {
+            expoPushSender.send(
+                tokens,
+                "🎉 첫 돌 패키지 완성!",
+                "${babyName}의 12개월 사진이 모두 채워졌어요. 첫 돌 패키지를 만들어보세요.",
+                mapOf("type" to "FIRST_YEAR_COMPLETE", "babyId" to babyId, "familyId" to familyId),
+            )
+        }
+        broker.publishForBaby(babyId, "FIRST_YEAR_COMPLETE", mapOf("babyId" to babyId))
+        log.info("first-year package milestone fired. familyId={}, babyId={}", familyId, babyId)
     }
 
     /** 슬롯 삭제 — DB row + 볼륨 파일 모두. */

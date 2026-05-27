@@ -259,5 +259,13 @@ class SchemaInitializer(private val jdbcTemplate: JdbcTemplate) {
                 primary key (baby_id, month_index)
             )
         """.trimIndent())
+
+        // 첫 돌 패키지 완성 알림 idempotency — 12장 다 채워진 순간 1회만 푸시.
+        jdbcTemplate.execute("""
+            create table if not exists bl_first_year_notified (
+                baby_id varchar(36) primary key references bl_babies(id),
+                notified_at timestamptz not null default now()
+            )
+        """.trimIndent())
     }
 }
